@@ -8,16 +8,16 @@ TOOLCHAIN="GCC5"
 GCC5_AARCH64_PREFIX="${GCC5_AARCH64_PREFIX:-aarch64-linux-gnu-}"
 SKIP_FETCH=0
 
-EDK2_COMMIT="46f4c9677c615d862649459392f8f55b3e6567c2"
-EDK2_NON_OSI_COMMIT="1e2ca640be54d7a4d5d804c4f33894d099432de3"
-EDK2_PLATFORMS_COMMIT="861c200cda1417539d46fe3b1eba2b582fa72cbb"
+EDK2_COMMIT="b7a715f7c03c45c6b4575bf88596bfd79658b8ce"
+EDK2_NON_OSI_COMMIT="7ac12d81e02b323bffdf1ef3c188ea33c2185c91"
+EDK2_PLATFORMS_COMMIT="b5e92aa284c59a22e7e38f79125a20f774ab7027"
 
 usage() {
   cat <<'EOF'
 Usage:
   ./build-rk3399-uefi.sh [options]
 
-Fetch the README-pinned EDK2 trees, place rk3399-edk2 at
+Fetch the pinned modern EDK2 trees, place rk3399-edk2 at
 edk2-platforms/Platform/Rockchip, build BaseTools, build RK3399 UEFI, and pack
 Build/Rk3399-SDK/<BUILD>_GCC5/FV/RK3399_SDK_UEFI.fd into RK3399_SDK_UEFI.img.
 
@@ -79,7 +79,7 @@ clone_or_update() {
   local dir="$2"
   local commit="$3"
 
-  if [[ ! -d "$dir/.git" ]]; then
+  if ! git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     log "cloning $(basename "$dir")"
     git clone "$url" "$dir"
   else
@@ -89,6 +89,15 @@ clone_or_update() {
 
   log "checking out $(basename "$dir") @ $commit"
   git -C "$dir" checkout --detach "$commit"
+}
+
+init_required_edk2_submodules() {
+  git -C "$WORKSPACE/edk2" submodule update --init \
+    BaseTools/Source/C/BrotliCompress/brotli \
+    MdeModulePkg/Library/BrotliCustomDecompressLib/brotli \
+    MdePkg/Library/BaseFdtLib/libfdt \
+    MdePkg/Library/MipiSysTLib/mipisyst \
+    SecurityPkg/DeviceSecurity/SpdmLib/libspdm
 }
 
 prepare_repositories() {
@@ -105,6 +114,7 @@ prepare_repositories() {
 
   [[ -f "$WORKSPACE/edk2/edksetup.sh" ]] || die "edk2 tree not found: $WORKSPACE/edk2"
   [[ -d "$WORKSPACE/edk2-platforms/Platform" ]] || die "edk2-platforms tree not found: $WORKSPACE/edk2-platforms"
+  init_required_edk2_submodules
 
   if [[ -e "$WORKSPACE/edk2-platforms/Platform/Rockchip" && ! -L "$WORKSPACE/edk2-platforms/Platform/Rockchip" ]]; then
     die "$WORKSPACE/edk2-platforms/Platform/Rockchip exists and is not a symlink"
