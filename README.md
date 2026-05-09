@@ -10,6 +10,27 @@ updated to build with the latest [edk2](https://github.com/tianocore/edk2)/[edk2
 
 ## Building on vanilla Debian GNU/Linux 9.1
 
+The same pinned revisions can be fetched and built with:
+
+```
+apt-get install build-essential acpica-tools nasm uuid-dev gcc-aarch64-linux-gnu git
+./build-rk3399-uefi.sh
+```
+
+The script uses the parent directory of this repository as `WORKSPACE`, creates
+or updates `edk2`, `edk2-non-osi`, and `edk2-platforms`, symlinks this checkout
+to `edk2-platforms/Platform/Rockchip`, then writes `RK3399_SDK_UEFI.img` to the
+workspace root.
+
+To create a Win32DiskImager-friendly SD-card image after the UEFI build:
+
+```
+./build-rk3399-sdimg.sh --no-build --uefi-img ../RK3399_SDK_UEFI.img
+```
+
+The output is `out/rk3399-uefi-sd.img`. It uses the exact sector layout shown in
+the flashing section below.
+
 ```
 apt-get install build-essential acpica-tools nasm uuid-dev gcc-aarch64-linux-gnu
 # If you want to use a different workspace, change the target directory below

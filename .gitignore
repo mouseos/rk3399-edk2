@@ -1,0 +1,4 @@
+out/
+*.img
+*.fd
+package-overlay/
