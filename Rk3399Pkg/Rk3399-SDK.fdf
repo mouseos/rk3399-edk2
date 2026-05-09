@@ -98,7 +98,7 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf
   INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
   INF EmbeddedPkg/EmbeddedMonotonicCounter/EmbeddedMonotonicCounter.inf
-  INF EmbeddedPkg/ResetRuntimeDxe/ResetRuntimeDxe.inf
+  INF MdeModulePkg/Universal/ResetSystemRuntimeDxe/ResetSystemRuntimeDxe.inf
   INF EmbeddedPkg/RealTimeClockRuntimeDxe/RealTimeClockRuntimeDxe.inf
   INF EmbeddedPkg/MetronomeDxe/MetronomeDxe.inf
 
@@ -109,7 +109,7 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/Console/TerminalDxe/TerminalDxe.inf
   INF MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
 
-  INF ArmPkg/Drivers/ArmGic/ArmGicDxe.inf
+  INF ArmPkg/Drivers/ArmGicDxe/ArmGicDxe.inf
   INF ArmPkg/Drivers/TimerDxe/TimerDxe.inf
 
   INF MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
@@ -150,20 +150,20 @@ READ_LOCK_STATUS   = TRUE
   #
   # UEFI Network Stack
   #
-  INF MdeModulePkg/Universal/Network/DpcDxe/DpcDxe.inf
-  INF MdeModulePkg/Universal/Network/MnpDxe/MnpDxe.inf
-  INF MdeModulePkg/Universal/Network/ArpDxe/ArpDxe.inf
-  INF MdeModulePkg/Universal/Network/Ip4Dxe/Ip4Dxe.inf
-  INF MdeModulePkg/Universal/Network/Udp4Dxe/Udp4Dxe.inf
+  INF NetworkPkg/DpcDxe/DpcDxe.inf
+  INF NetworkPkg/MnpDxe/MnpDxe.inf
+  INF NetworkPkg/ArpDxe/ArpDxe.inf
+  INF NetworkPkg/Ip4Dxe/Ip4Dxe.inf
+  INF NetworkPkg/Udp4Dxe/Udp4Dxe.inf
   INF NetworkPkg/TcpDxe/TcpDxe.inf
-  INF MdeModulePkg/Universal/Network/Dhcp4Dxe/Dhcp4Dxe.inf
-  INF MdeModulePkg/Universal/Network/Mtftp4Dxe/Mtftp4Dxe.inf
+  INF NetworkPkg/Dhcp4Dxe/Dhcp4Dxe.inf
+  INF NetworkPkg/Mtftp4Dxe/Mtftp4Dxe.inf
   INF NetworkPkg/UefiPxeBcDxe/UefiPxeBcDxe.inf
 
   #
   # AX88772 Ethernet Driver for Apple Ethernet Adapter
   #
-  INF OptionRomPkg/Bus/Usb/UsbNetworking/Ax88772b/Ax88772b.inf
+  INF Drivers/ASIX/Bus/Usb/UsbNetworking/Ax88772c/Ax88772c.inf
 
   #
   # FAT filesystem + GPT/MBR partitioning
@@ -174,7 +174,7 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
 
   INF MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
-  INF MdeModulePkg/Universal/Variable/EmuRuntimeDxe/EmuVariableRuntimeDxe.inf
+  INF MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
 
   INF MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
 
@@ -222,7 +222,7 @@ READ_STATUS        = TRUE
 READ_LOCK_CAP      = TRUE
 READ_LOCK_STATUS   = TRUE
 
-  INF ArmPlatformPkg/PrePi/PeiUniCore.inf
+  INF ArmPlatformPkg/PeilessSec/PeilessSec.inf
 
   FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
     SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE {
@@ -260,9 +260,9 @@ READ_LOCK_STATUS   = TRUE
 ############################################################################
 
 #
-# These SEC rules are used for ArmPlatformPkg/PrePi module.
-# ArmPlatformPkg/PrePi is declared as a SEC module to make GenFv patch the
-# UEFI Firmware to jump to ArmPlatformPkg/PrePi entrypoint
+# These SEC rules are used for ArmPlatformPkg/PeilessSec module.
+# ArmPlatformPkg/PeilessSec is declared as a SEC module to make GenFv patch the
+# UEFI Firmware to jump to the SEC entrypoint.
 #
 [Rule.ARM.SEC]
   FILE SEC = $(NAMED_GUID) RELOCS_STRIPPED {

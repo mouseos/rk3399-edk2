@@ -810,7 +810,7 @@ DwEmmcDxeInitialize (
   //Publish Component Name, BlockIO protocol interfaces
   Status = gBS->InstallMultipleProtocolInterfaces (
                   &Handle,
-                  &gEfiMmcHostProtocolGuid,         &gMciHost,
+                  &gEmbeddedMmcHostProtocolGuid,         &gMciHost,
                   NULL
                   );
   ASSERT_EFI_ERROR (Status);

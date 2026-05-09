@@ -40,8 +40,12 @@
   ArmLib
   TimerLib
   DxeServicesTableLib
+  UefiBootServicesTableLib
   UefiRuntimeLib
   CRULib
+
+[Guids]
+  gEfiEventVirtualAddressChangeGuid
 
 [BuildOptions]
 

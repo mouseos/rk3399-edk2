@@ -130,6 +130,9 @@ build_firmware() {
   cd "$WORKSPACE"
 
   local tools_def="$WORKSPACE/edk2/Conf/tools_def.txt"
+  sed -i 's/\r//g' "$tools_def"
+  sed -i '/^[[:space:]]*-Wno-stringop-overflow$/d' "$tools_def"
+  sed -i 's#$(WORKSPACE)/ArmPkg/Library/GccLto#$(EDK_TOOLS_PATH)/Bin/GccLto#g' "$tools_def"
   if ! grep -q -- "-Wno-stringop-overflow" "$tools_def"; then
     log "patching tools_def.txt for modern GCC warnings"
     sed -i \
