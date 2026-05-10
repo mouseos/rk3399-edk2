@@ -17,6 +17,7 @@
 #include <Rk3399/Rk3399.h>
 #include <Rk3399/Rk3399Cru.h>
 #include <Rk3399/Rk3399Grf.h>
+#include <Rk3399/Rk3399PmuGrf.h>
 #include <Library/I2CLib.h>
 
 /* Global Configuration Register */
@@ -83,6 +84,95 @@
 
 #define DWC3_GSNPSID_MASK                       0xffff0000
 #define DWC3_REVISION_MASK                      0xffff
+
+#define RK3399_GPIO0_BASE                       0xFF720000
+#define RK3399_GPIO_SWPORTA_DR                  0x0000
+#define RK3399_GPIO_SWPORTA_DDR                 0x0004
+#define RK3399_GPIO0_PA6                        (1u << 6)
+
+#define FUSB302_ADDR                            0x22
+#define FUSB_REG_DEVICEID                       0x01
+#define FUSB_REG_SWITCHES0                      0x02
+#define FUSB_REG_CONTROL0                       0x06
+#define FUSB_REG_CONTROL2                       0x08
+#define FUSB_REG_CONTROL3                       0x09
+#define FUSB_REG_MASK                           0x0A
+#define FUSB_REG_POWER                          0x0B
+#define FUSB_REG_RESET                          0x0C
+#define FUSB_REG_MASKA                          0x0E
+#define FUSB_REG_MASKB                          0x0F
+#define FUSB_REG_STATUS0                        0x40
+#define FUSB_REG_STATUS1                        0x41
+#define FUSB_SWITCHES0_MEAS_CC1                 (1u << 2)
+#define FUSB_SWITCHES0_MEAS_CC2                 (1u << 3)
+#define FUSB_SWITCHES0_PU_EN1                   (1u << 6)
+#define FUSB_SWITCHES0_PU_EN2                   (1u << 7)
+#define FUSB_CONTROL0_HOST_CUR_1A5              (2u << 2)
+#define FUSB_CONTROL2_TOGGLE                    (1u << 0)
+#define FUSB_CONTROL2_MODE_DFP                  (3u << 1)
+#define FUSB_CONTROL2_TOG_RD_ONLY               (1u << 5)
+#define FUSB_CONTROL3_AUTO_RETRY                (1u << 0)
+#define FUSB_CONTROL3_N_RETRIES                 (3u << 1)
+
+#define RK818_ADDR                              0x1C
+#define RK818_DCDC_EN_REG                       0x23
+#define RK818_SLEEP_SET_OFF_REG1                0x25
+#define RK818_H5V_EN_REG                        0x52
+#define RK818_BOOST_LDO9_ON_VSEL_REG            0x54
+#define RK818_BOOST_ON_VSEL_MASK                0xE0
+#define RK818_BOOST_5V0_SEL                     0x60
+#define RK818_H5V_EN                            (1u << 0)
+#define RK818_REF_RDY_CTRL                      (1u << 1)
+#define RK818_BOOST_EN                          (1u << 4)
+#define RK818_SWITCH_EN                         (1u << 6)
+#define RK818_OTG_EN                            (1u << 7)
+#define RK818_OTG_SLP_SET_OFF                   (1u << 7)
+
+STATIC EFI_STATUS
+I2cUpdateBits (
+  IN UINT32 BusId,
+  IN UINT8  Chip,
+  IN UINT32 Reg,
+  IN UINT8  Mask,
+  IN UINT8  Value
+  )
+{
+  EFI_STATUS Status;
+  UINT8 Data;
+
+  Status = I2CRead (BusId, Chip, Reg, 1, &Data, 1);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Data = (UINT8)((Data & ~Mask) | (Value & Mask));
+  return I2CWrite (BusId, Chip, Reg, 1, &Data, 1);
+}
+
+STATIC VOID
+EnableTypecVbusSwitchGpio (
+  VOID
+  )
+{
+  UINT32 Reg;
+
+  /*
+   * Linux rk818_charger toggles VCC5V0_TYPEC0_gpios = GPIO0_PA6 when OTG
+   * power is enabled. Keep data high before switching the pin to output.
+   */
+  PmuCruWritel ((1u << (3 + 16)), PMUCRU_CLKGATES_CON (1));
+  PmuGrfWritel ((0x3u << (12 + 16)), PMU_GRF_GPIO0A_IOMUX);
+
+  Reg = MmioRead32 (RK3399_GPIO0_BASE + RK3399_GPIO_SWPORTA_DR);
+  Reg |= RK3399_GPIO0_PA6;
+  MmioWrite32 (RK3399_GPIO0_BASE + RK3399_GPIO_SWPORTA_DR, Reg);
+
+  Reg = MmioRead32 (RK3399_GPIO0_BASE + RK3399_GPIO_SWPORTA_DDR);
+  Reg |= RK3399_GPIO0_PA6;
+  MmioWrite32 (RK3399_GPIO0_BASE + RK3399_GPIO_SWPORTA_DDR, Reg);
+
+  DEBUG ((DEBUG_ERROR, "USB: GPIO0_PA6 Type-C VBUS switch enabled\n"));
+}
 
 #pragma pack(push, 1)
 struct rockchip_usb_dwc3 {
@@ -301,22 +391,6 @@ InitializeUsbHcd (
   /* Initialize fusb302 Type-C controller for USB Host (DFP) mode + VBUS */
   /* fusb302 on I2C4, address 0x22 */
   {
-    #define FUSB302_ADDR         0x22
-    #define FUSB_REG_DEVICEID    0x01
-    #define FUSB_REG_SWITCHES0   0x02
-    #define FUSB_REG_SWITCHES1   0x03
-    #define FUSB_REG_MEASURE     0x04
-    #define FUSB_REG_CONTROL0    0x06
-    #define FUSB_REG_CONTROL2    0x08
-    #define FUSB_REG_CONTROL3    0x09
-    #define FUSB_REG_MASK        0x0A
-    #define FUSB_REG_POWER       0x0B
-    #define FUSB_REG_RESET       0x0C
-    #define FUSB_REG_MASKA       0x0E
-    #define FUSB_REG_MASKB       0x0F
-    #define FUSB_REG_STATUS0     0x40
-    #define FUSB_REG_STATUS1     0x41
-
     UINT8 val;
     EFI_STATUS I2cStatus;
 
@@ -356,6 +430,15 @@ InitializeUsbHcd (
     val = 0x0F; /* PWR_ALL */
     I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_POWER, 1, &val, 1);
 
+    /* Rp current advertisement: TYPEC_RP_1A5, matching the Linux driver. */
+    val = FUSB_CONTROL0_HOST_CUR_1A5;
+    I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_CONTROL0, 1, &val, 1);
+
+    /* Enable PD auto retry, matching fusb302 init path. */
+    I2cUpdateBits(I2C_CH4, FUSB302_ADDR, FUSB_REG_CONTROL3,
+                  FUSB_CONTROL3_AUTO_RETRY | FUSB_CONTROL3_N_RETRIES,
+                  FUSB_CONTROL3_AUTO_RETRY | FUSB_CONTROL3_N_RETRIES);
+
     /* Mask all interrupts (we poll, don't use IRQ) */
     val = 0xFF;
     I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_MASK, 1, &val, 1);
@@ -363,36 +446,48 @@ InitializeUsbHcd (
     I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_MASKB, 1, &val, 1);
 
     /* SWITCHES0: Enable CC1 and CC2 pull-up (Rp) for host/source mode */
-    val = 0xCC; /* PU_EN1 | PU_EN2 | MEAS_CC1 | MEAS_CC2 ... actually:
-                   bit7=PU_EN2, bit6=PU_EN1, bit3=MEAS_CC2, bit2=MEAS_CC1
-                   0xCC = 1100 1100 = PU_EN2 + PU_EN1 + MEAS_CC2 + MEAS_CC1 */
-    val = 0xC4; /* PU_EN2(bit7) + PU_EN1(bit6) + MEAS_CC1(bit2) = 1100 0100 */
+    val = FUSB_SWITCHES0_PU_EN1 | FUSB_SWITCHES0_PU_EN2 |
+          FUSB_SWITCHES0_MEAS_CC1 | FUSB_SWITCHES0_MEAS_CC2;
     I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_SWITCHES0, 1, &val, 1);
 
-    /* CONTROL2: Set DFP mode with toggle */
-    val = 0x25; /* TOG_RD_ONLY(bit5) + MODE_DFP(bits[2:1]=10) + TOGGLE(bit0) */
+    /* CONTROL2: Set DFP/source mode with toggle. Linux CONTROL2_MODE_DFP is 0x06. */
+    val = FUSB_CONTROL2_TOG_RD_ONLY |
+          FUSB_CONTROL2_MODE_DFP |
+          FUSB_CONTROL2_TOGGLE;
     I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_CONTROL2, 1, &val, 1);
-
-    /* MEASURE: Set host current detection level (default Rp) */
-    val = 0x31; /* MDAC for default USB current */
-    I2CWrite(I2C_CH4, FUSB302_ADDR, FUSB_REG_MEASURE, 1, &val, 1);
 
     DEBUG((DEBUG_ERROR, "USB: fusb302 configured as DFP (host)\n"));
 
     /* Enable OTG 5V boost via RK818 PMIC (I2C0, addr 0x1C) */
-    /* DCDC_BOOST enable: RK818_DCDC_EN_REG (0x23) bit 4 */
     {
-      #define RK818_ADDR  0x1C
-      UINT8 val;
+      UINT8 Rk818Reg;
 
       I2CInit(I2C_CH0, 200000);
-      I2CRead(I2C_CH0, RK818_ADDR, 0x23, 1, &val, 1);
-      DEBUG((DEBUG_ERROR, "USB: RK818 DCDC_EN(0x23)=0x%02x\n", val));
-      val |= (1u << 4);  /* BOOST enable */
-      I2CWrite(I2C_CH0, RK818_ADDR, 0x23, 1, &val, 1);
-      I2CRead(I2C_CH0, RK818_ADDR, 0x23, 1, &val, 1);
-      DEBUG((DEBUG_ERROR, "USB: RK818 DCDC_EN after=0x%02x (boost on)\n", val));
+      I2CRead(I2C_CH0, RK818_ADDR, RK818_DCDC_EN_REG, 1, &Rk818Reg, 1);
+      DEBUG((DEBUG_ERROR, "USB: RK818 DCDC_EN(0x23)=0x%02x\n", Rk818Reg));
+
+      /*
+       * Linux rk808 MFD pre-init enables H5V/REF_RDY and BOOST/SWITCH.
+       * Linux rk808-regulator maps OTG_SWITCH to DCDC_EN bit7.
+       */
+      I2cUpdateBits(I2C_CH0, RK818_ADDR, RK818_H5V_EN_REG,
+                    RK818_H5V_EN | RK818_REF_RDY_CTRL,
+                    RK818_H5V_EN | RK818_REF_RDY_CTRL);
+      I2cUpdateBits(I2C_CH0, RK818_ADDR, RK818_BOOST_LDO9_ON_VSEL_REG,
+                    RK818_BOOST_ON_VSEL_MASK, RK818_BOOST_5V0_SEL);
+      I2cUpdateBits(I2C_CH0, RK818_ADDR, RK818_DCDC_EN_REG,
+                    RK818_BOOST_EN | RK818_SWITCH_EN | RK818_OTG_EN,
+                    RK818_BOOST_EN | RK818_SWITCH_EN | RK818_OTG_EN);
+      I2cUpdateBits(I2C_CH0, RK818_ADDR, RK818_SLEEP_SET_OFF_REG1,
+                    RK818_OTG_SLP_SET_OFF, RK818_OTG_SLP_SET_OFF);
+
+      I2CRead(I2C_CH0, RK818_ADDR, RK818_H5V_EN_REG, 1, &Rk818Reg, 1);
+      DEBUG((DEBUG_ERROR, "USB: RK818 H5V_EN(0x52)=0x%02x\n", Rk818Reg));
+      I2CRead(I2C_CH0, RK818_ADDR, RK818_DCDC_EN_REG, 1, &Rk818Reg, 1);
+      DEBUG((DEBUG_ERROR, "USB: RK818 DCDC_EN after=0x%02x (boost/switch/otg on)\n", Rk818Reg));
     }
+
+    EnableTypecVbusSwitchGpio();
 
     /* Wait for VBUS ramp + device enumeration */
     MicroSecondDelay(1000000); /* 1 second */
