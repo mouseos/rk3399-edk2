@@ -143,6 +143,10 @@ READ_LOCK_STATUS   = TRUE
   INF Platform/Rockchip/Rk3399Pkg/Drivers/UsbHcdInitDxe/UsbHcd.inf
 
   #
+  # USB HID Support
+  #
+  INF MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
+
   # USB Mass Storage Support
   #
   INF MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf

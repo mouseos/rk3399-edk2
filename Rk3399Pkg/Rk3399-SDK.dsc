@@ -48,6 +48,7 @@
   ArmPlatformSysConfigLib|Platform/Rockchip/Rk3399Pkg/Library/ArmPlatformSysConfigLibNull/ArmPlatformSysConfigLibNull.inf
 
   FrameBufferBltLib|MdeModulePkg/Library/FrameBufferBltLib/FrameBufferBltLib.inf
+  UefiUsbLib|MdePkg/Library/UefiUsbLib/UefiUsbLib.inf
   BaseLib|MdePkg/Library/BaseLib/BaseLib.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
   CacheMaintenanceLib|ArmPkg/Library/ArmCacheMaintenanceLib/ArmCacheMaintenanceLib.inf
@@ -428,6 +429,11 @@
   MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
   MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
   Platform/Rockchip/Rk3399Pkg/Drivers/UsbHcdInitDxe/UsbHcd.inf
+
+  #
+  # USB HID Support
+  #
+  MdeModulePkg/Bus/Usb/UsbKbDxe/UsbKbDxe.inf
 
   #
   # USB Mass Storage Support

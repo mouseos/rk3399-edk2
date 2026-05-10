@@ -297,6 +297,30 @@ InitializeUsbHcd (
 {
   EFI_STATUS Status;
 
+  /* Enable USB Host VBUS power: GPIO4_PD1 (pin 25), ACTIVE_HIGH */
+  {
+    volatile UINT32 *gpio4_dr  = (volatile UINT32*)0xFF790000;
+    volatile UINT32 *gpio4_ddr = (volatile UINT32*)0xFF790004;
+    volatile UINT32 *cru_gate31 = (volatile UINT32*)(0xFF760000 + 0x300 + 31*4);
+    volatile UINT32 *grf_gpio4d = (volatile UINT32*)(0xFF770000 + 0xE02C);
+
+    DEBUG((DEBUG_ERROR, "USB: Enabling VBUS GPIO4_PD1\n"));
+
+    /* Enable pclk_gpio4 clock */
+    *cru_gate31 = (1u << (5+16));
+
+    /* IOMUX = GPIO */
+    *grf_gpio4d = (0x3u << (2+16));
+
+    /* Direction = output, data = HIGH */
+    *gpio4_ddr = *gpio4_ddr | (1u << 25);
+    *gpio4_dr  = *gpio4_dr  | (1u << 25);
+
+    DEBUG((DEBUG_ERROR, "USB: GPIO4 DR=0x%08x DDR=0x%08x\n", *gpio4_dr, *gpio4_ddr));
+
+    MicroSecondDelay(500000);
+  }
+
   rockchip_xhci_core_init(otg0);
   rockchip_xhci_core_init(otg1);
 
