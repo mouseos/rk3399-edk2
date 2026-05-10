@@ -32,7 +32,8 @@ STATIC FRAME_BUFFER_CONFIGURE *mFrameBufferBltLibConfigure;
 STATIC UINTN mFrameBufferBltLibConfigureSize;
 STATIC UINT32 *mShadowFb;        // 32bpp shadow buffer (for FrameBufferBltLib)
 STATIC UINT16 *mHwFb;            // Hardware RGB565 framebuffer
-STATIC UINT32 mWidth, mHeight;
+STATIC UINT32 mWidth, mHeight;   // GOP dimensions (landscape: 1920x1200)
+STATIC UINT32 mHwWidth, mHwHeight; // Hardware dimensions (portrait: 1200x1920)
 
 STATIC VOID __attribute__((unused)) ConvertAndFlush(VOID)
 {
@@ -85,23 +86,25 @@ STATIC EFI_STATUS EFIAPI DisplayBlt(
   gBS->RestoreTPL(Tpl);
 
   if (!RETURN_ERROR(Status)) {
-    // Convert affected region from 32bpp shadow to RGB565 hardware FB
+    // Convert affected region with 90° CW rotation:
+    // GOP landscape (x,y) in WxH → HW portrait (hw_x, hw_y) in mHwWidth x mHwHeight
+    // 90° CW: hw_x = y, hw_y = (mWidth - 1 - x)
     UINTN y;
     for (y = DestinationY; y < DestinationY + Height && y < mHeight; y++) {
       UINTN x;
-      UINTN offset = y * mWidth + DestinationX;
-      for (x = 0; x < Width && (DestinationX + x) < mWidth; x++) {
-        UINT32 pixel = mShadowFb[offset + x];
+      for (x = DestinationX; x < DestinationX + Width && x < mWidth; x++) {
+        UINT32 pixel = mShadowFb[y * mWidth + x];
         UINT8 r = (pixel >> 16) & 0xFF;
         UINT8 g = (pixel >> 8) & 0xFF;
         UINT8 b = pixel & 0xFF;
-        // VOP has RB_SWAP=1, so swap R and B in RGB565 output
-        mHwFb[offset + x] = ((b >> 3) << 11) | ((g >> 2) << 5) | (r >> 3);
+        UINTN hwX = mHeight - 1 - y;
+        UINTN hwY = x;
+        // VOP has RB_SWAP=1, so swap R and B
+        mHwFb[hwY * mHwWidth + hwX] = ((b >> 3) << 11) | ((g >> 2) << 5) | (r >> 3);
       }
     }
-    WriteBackInvalidateDataCacheRange(
-      (void*)(mHwFb + DestinationY * mWidth),
-      Height * mWidth * 2);
+    // Flush entire HW FB (rotation scatters writes)
+    WriteBackInvalidateDataCacheRange((void*)mHwFb, mHwWidth * mHwHeight * 2);
   }
 
   return RETURN_ERROR(Status) ? EFI_INVALID_PARAMETER : EFI_SUCCESS;
@@ -120,10 +123,13 @@ EFI_STATUS EFIAPI SimpleFbDxeInitialize(
   DEBUG((DEBUG_ERROR, "SimpleFbDxe: Initialize\n"));
 
   UINT32 HwFbAddr = FixedPcdGet32(PcdMipiFrameBufferAddress);
-  mWidth = FixedPcdGet32(PcdMipiFrameBufferWidth);
-  mHeight = FixedPcdGet32(PcdMipiFrameBufferHeight);
+  mHwWidth = FixedPcdGet32(PcdMipiFrameBufferWidth);   // 1200 (portrait)
+  mHwHeight = FixedPcdGet32(PcdMipiFrameBufferHeight); // 1920 (portrait)
+  // GOP reports landscape (rotated 90°)
+  mWidth = mHwHeight;  // 1920
+  mHeight = mHwWidth;  // 1200
 
-  if (HwFbAddr == 0 || mWidth == 0 || mHeight == 0) {
+  if (HwFbAddr == 0 || mHwWidth == 0 || mHwHeight == 0) {
     DEBUG((DEBUG_ERROR, "SimpleFbDxe: Invalid PCD parameters\n"));
     return EFI_DEVICE_ERROR;
   }
@@ -142,8 +148,8 @@ EFI_STATUS EFIAPI SimpleFbDxeInitialize(
   }
 
   // Clear hardware FB to black
-  ZeroMem((void*)mHwFb, mWidth * mHeight * 2);
-  WriteBackInvalidateDataCacheRange((void*)mHwFb, mWidth * mHeight * 2);
+  ZeroMem((void*)mHwFb, mHwWidth * mHwHeight * 2);
+  WriteBackInvalidateDataCacheRange((void*)mHwFb, mHwWidth * mHwHeight * 2);
 
   // Setup GOP mode info
   Status = gBS->AllocatePool(EfiBootServicesData,
