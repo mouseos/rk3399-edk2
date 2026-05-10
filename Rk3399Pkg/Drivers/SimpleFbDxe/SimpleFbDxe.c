@@ -294,12 +294,17 @@ SimpleFbDxeInitialize
     }
     ASSERT_EFI_ERROR (Status);
 
-    // zhuowei: clear the screen to black
-    // UEFI standard requires this, since text is white - see OvmfPkg/QemuVideoDxe/Gop.c
-    ZeroMem((void*)FrameBufferAddress, FrameBufferSize);
-    // hack: clear cache
-    WriteBackInvalidateDataCacheRange((void*)FrameBufferAddress, FrameBufferSize);
-    // zhuowei: end
+    // NO VOP changes — keep RGB565, just fill with white (0xFFFF)
+    {
+      UINT16 *Fb16 = (UINT16*)(UINTN)FrameBufferAddress;
+      UINTN total = MipiFrameBufferWidth * MipiFrameBufferHeight;
+      UINTN i;
+      for (i = 0; i < total; i++) {
+        Fb16[i] = 0xFFFF; // white in RGB565
+      }
+      WriteBackInvalidateDataCacheRange((void*)(UINTN)FrameBufferAddress,
+        MipiFrameBufferWidth * MipiFrameBufferHeight * 2);
+    }
  
     /* Register handle */
     Status = gBS->InstallMultipleProtocolInterfaces(

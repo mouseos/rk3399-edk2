@@ -61,17 +61,14 @@ ArmPlatformInitialize (
   IN  UINTN                     MpId
   )
 {
+  /* Secondary bootloader mode: U-Boot already initialized clocks.
+   * Re-initializing PLLs would destroy display (VPLL) and crash. */
+#if 0
   rk3399_pmu_clock_init();
   rk3399_clock_init();
-  /*
-   * Little cluster at 1.3GHz (unstable at 1.4).
-   * Big cluster at 1.7GHz (unstable at 1.8).
-   *
-   * If/when can use the regulators (board-specific),
-   * may be able to push this further.
-   */
   rk3399_configure_cpu(APLL_1300_MHZ, CPU_CLUSTER_LITTLE);
   rk3399_configure_cpu(APLL_1700_MHZ, CPU_CLUSTER_BIG);
+#endif
   return RETURN_SUCCESS;
 }
 
