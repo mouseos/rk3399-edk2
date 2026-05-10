@@ -1,4 +1,4 @@
-/* SimpleFbDxe: Simple FrameBuffer */
+/* SimpleFbDxe: Simple FrameBuffer with RGB565 hardware + 32bpp GOP */
 #include <PiDxe.h>
 #include <Uefi.h>
 #include <Library/UefiLib.h>
@@ -13,310 +13,185 @@
 #include <Library/FrameBufferBltLib.h>
 #include <Library/CacheMaintenanceLib.h>
 
-/// Defines
-/*
- * Convert enum video_log2_bpp to bytes and bits. Note we omit the outer
- * brackets to allow multiplication by fractional pixels.
- */
-#define VNBYTES(bpix)	(1 << (bpix)) / 8
-#define VNBITS(bpix)	(1 << (bpix))
-
-#define FB_BITS_PER_PIXEL                   (32)
-#define FB_BYTES_PER_PIXEL                  (FB_BITS_PER_PIXEL / 8)
-
-/*
- * Bits per pixel selector. Each value n is such that the bits-per-pixel is
- * 2 ^ n
- */
-enum video_log2_bpp {
-	VIDEO_BPP1	= 0,
-	VIDEO_BPP2,
-	VIDEO_BPP4,
-	VIDEO_BPP8,
-	VIDEO_BPP16,
-	VIDEO_BPP32,
-};
+#define FB_BITS_PER_PIXEL  (32)
+#define HW_BPP             (16)
 
 typedef struct {
   VENDOR_DEVICE_PATH DisplayDevicePath;
   EFI_DEVICE_PATH EndDevicePath;
 } DISPLAY_DEVICE_PATH;
 
-DISPLAY_DEVICE_PATH mDisplayDevicePath =
-{
-    {
-      {
-        HARDWARE_DEVICE_PATH,
-        HW_VENDOR_DP,
-        {
-          (UINT8)(sizeof(VENDOR_DEVICE_PATH)),
-          (UINT8)((sizeof(VENDOR_DEVICE_PATH)) >> 8),
-        }
-      },
-      EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID
-    },
-    {
-      END_DEVICE_PATH_TYPE,
-      END_ENTIRE_DEVICE_PATH_SUBTYPE,
-      {
-        sizeof(EFI_DEVICE_PATH_PROTOCOL),
-        0
-      }
-    }
+DISPLAY_DEVICE_PATH mDisplayDevicePath = {
+  {{HARDWARE_DEVICE_PATH, HW_VENDOR_DP,
+    {(UINT8)(sizeof(VENDOR_DEVICE_PATH)), (UINT8)((sizeof(VENDOR_DEVICE_PATH)) >> 8)}},
+   EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID},
+  {END_DEVICE_PATH_TYPE, END_ENTIRE_DEVICE_PATH_SUBTYPE, {sizeof(EFI_DEVICE_PATH_PROTOCOL), 0}}
 };
 
-/// Declares
+STATIC FRAME_BUFFER_CONFIGURE *mFrameBufferBltLibConfigure;
+STATIC UINTN mFrameBufferBltLibConfigureSize;
+STATIC UINT32 *mShadowFb;        // 32bpp shadow buffer (for FrameBufferBltLib)
+STATIC UINT16 *mHwFb;            // Hardware RGB565 framebuffer
+STATIC UINT32 mWidth, mHeight;
 
-STATIC FRAME_BUFFER_CONFIGURE        *mFrameBufferBltLibConfigure;
-STATIC UINTN                         mFrameBufferBltLibConfigureSize;
-
-STATIC
-EFI_STATUS
-EFIAPI
-DisplayQueryMode
-(
-    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL          *This,
-    IN  UINT32                                ModeNumber,
-    OUT UINTN                                 *SizeOfInfo,
-    OUT EFI_GRAPHICS_OUTPUT_MODE_INFORMATION  **Info
-);
-
-STATIC
-EFI_STATUS
-EFIAPI
-DisplaySetMode
-(
-    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL *This,
-    IN  UINT32                       ModeNumber
-);
-
-STATIC
-EFI_STATUS
-EFIAPI
-DisplayBlt
-(
-    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL            *This,
-    IN  EFI_GRAPHICS_OUTPUT_BLT_PIXEL           *BltBuffer,   OPTIONAL
-    IN  EFI_GRAPHICS_OUTPUT_BLT_OPERATION       BltOperation,
-    IN  UINTN                                   SourceX,
-    IN  UINTN                                   SourceY,
-    IN  UINTN                                   DestinationX,
-    IN  UINTN                                   DestinationY,
-    IN  UINTN                                   Width,
-    IN  UINTN                                   Height,
-    IN  UINTN                                   Delta         OPTIONAL
-);
-
-STATIC EFI_GRAPHICS_OUTPUT_PROTOCOL mDisplay = {
-  DisplayQueryMode,
-  DisplaySetMode,
-  DisplayBlt,
-  NULL
-};
-
-STATIC
-EFI_STATUS
-EFIAPI
-DisplayQueryMode
-(
-    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL          *This,
-    IN  UINT32                                ModeNumber,
-    OUT UINTN                                 *SizeOfInfo,
-    OUT EFI_GRAPHICS_OUTPUT_MODE_INFORMATION  **Info
-)
+STATIC VOID __attribute__((unused)) ConvertAndFlush(VOID)
 {
-    EFI_STATUS Status;
-    Status = gBS->AllocatePool(
-        EfiBootServicesData,
-        sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION),
-        (VOID **) Info);
-
-    ASSERT_EFI_ERROR(Status);
-
-    *SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
-    (*Info)->Version = This->Mode->Info->Version;
-    (*Info)->HorizontalResolution = This->Mode->Info->HorizontalResolution;
-    (*Info)->VerticalResolution = This->Mode->Info->VerticalResolution;
-    (*Info)->PixelFormat = This->Mode->Info->PixelFormat;
-    (*Info)->PixelsPerScanLine = This->Mode->Info->PixelsPerScanLine;
-
-    return EFI_SUCCESS;
+  UINTN total = mWidth * mHeight;
+  UINTN i;
+  for (i = 0; i < total; i++) {
+    UINT32 pixel = mShadowFb[i];
+    UINT8 r = (pixel >> 16) & 0xFF;
+    UINT8 g = (pixel >> 8) & 0xFF;
+    UINT8 b = pixel & 0xFF;
+    mHwFb[i] = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+  }
+  WriteBackInvalidateDataCacheRange((void*)mHwFb, total * 2);
 }
 
-STATIC
-EFI_STATUS
-EFIAPI
-DisplaySetMode
-(
-    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL *This,
-    IN  UINT32                       ModeNumber
-)
+STATIC EFI_STATUS EFIAPI DisplayQueryMode(
+    IN EFI_GRAPHICS_OUTPUT_PROTOCOL *This, IN UINT32 ModeNumber,
+    OUT UINTN *SizeOfInfo, OUT EFI_GRAPHICS_OUTPUT_MODE_INFORMATION **Info)
+{
+  EFI_STATUS Status;
+  Status = gBS->AllocatePool(EfiBootServicesData,
+      sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION), (VOID**)Info);
+  ASSERT_EFI_ERROR(Status);
+  *SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
+  CopyMem(*Info, This->Mode->Info, sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION));
+  return EFI_SUCCESS;
+}
+
+STATIC EFI_STATUS EFIAPI DisplaySetMode(
+    IN EFI_GRAPHICS_OUTPUT_PROTOCOL *This, IN UINT32 ModeNumber)
 {
   return EFI_SUCCESS;
 }
 
-STATIC
-EFI_STATUS
-EFIAPI
-DisplayBlt
-(
-    IN  EFI_GRAPHICS_OUTPUT_PROTOCOL      *This,
-    IN  EFI_GRAPHICS_OUTPUT_BLT_PIXEL     *BltBuffer,   OPTIONAL
-    IN  EFI_GRAPHICS_OUTPUT_BLT_OPERATION BltOperation,
-    IN  UINTN                             SourceX,
-    IN  UINTN                             SourceY,
-    IN  UINTN                             DestinationX,
-    IN  UINTN                             DestinationY,
-    IN  UINTN                             Width,
-    IN  UINTN                             Height,
-    IN  UINTN                             Delta         OPTIONAL
-)
+STATIC EFI_STATUS EFIAPI DisplayBlt(
+    IN EFI_GRAPHICS_OUTPUT_PROTOCOL *This,
+    IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL *BltBuffer OPTIONAL,
+    IN EFI_GRAPHICS_OUTPUT_BLT_OPERATION BltOperation,
+    IN UINTN SourceX, IN UINTN SourceY,
+    IN UINTN DestinationX, IN UINTN DestinationY,
+    IN UINTN Width, IN UINTN Height,
+    IN UINTN Delta OPTIONAL)
 {
+  RETURN_STATUS Status;
+  EFI_TPL Tpl;
 
-  RETURN_STATUS                         Status;
-  EFI_TPL                               Tpl;
-  //
-  // We have to raise to TPL_NOTIFY, so we make an atomic write to the frame buffer.
-  // We would not want a timer based event (Cursor, ...) to come in while we are
-  // doing this operation.
-  //
-  Tpl = gBS->RaiseTPL (TPL_NOTIFY);
-  Status = FrameBufferBlt (
-             mFrameBufferBltLibConfigure,
-             BltBuffer,
-             BltOperation,
-             SourceX, SourceY,
-             DestinationX, DestinationY, Width, Height,
-             Delta
-             );
-  gBS->RestoreTPL (Tpl);
+  Tpl = gBS->RaiseTPL(TPL_NOTIFY);
+  Status = FrameBufferBlt(mFrameBufferBltLibConfigure, BltBuffer, BltOperation,
+             SourceX, SourceY, DestinationX, DestinationY, Width, Height, Delta);
+  gBS->RestoreTPL(Tpl);
 
-  // zhuowei: hack: flush the cache manually since my memory maps are still broken
-  WriteBackInvalidateDataCacheRange((void*)mDisplay.Mode->FrameBufferBase, 
-    mDisplay.Mode->FrameBufferSize);
-  // zhuowei: end hack
+  if (!RETURN_ERROR(Status)) {
+    // Convert affected region from 32bpp shadow to RGB565 hardware FB
+    UINTN y;
+    for (y = DestinationY; y < DestinationY + Height && y < mHeight; y++) {
+      UINTN x;
+      UINTN offset = y * mWidth + DestinationX;
+      for (x = 0; x < Width && (DestinationX + x) < mWidth; x++) {
+        UINT32 pixel = mShadowFb[offset + x];
+        UINT8 r = (pixel >> 16) & 0xFF;
+        UINT8 g = (pixel >> 8) & 0xFF;
+        UINT8 b = pixel & 0xFF;
+        // VOP has RB_SWAP=1, so swap R and B in RGB565 output
+        mHwFb[offset + x] = ((b >> 3) << 11) | ((g >> 2) << 5) | (r >> 3);
+      }
+    }
+    WriteBackInvalidateDataCacheRange(
+      (void*)(mHwFb + DestinationY * mWidth),
+      Height * mWidth * 2);
+  }
 
-  return RETURN_ERROR (Status) ? EFI_INVALID_PARAMETER : EFI_SUCCESS;
+  return RETURN_ERROR(Status) ? EFI_INVALID_PARAMETER : EFI_SUCCESS;
 }
 
-EFI_STATUS
-EFIAPI
-SimpleFbDxeInitialize
-(
-    IN EFI_HANDLE         ImageHandle,
-    IN EFI_SYSTEM_TABLE   *SystemTable
-)
+STATIC EFI_GRAPHICS_OUTPUT_PROTOCOL mDisplay = {
+  DisplayQueryMode, DisplaySetMode, DisplayBlt, NULL
+};
+
+EFI_STATUS EFIAPI SimpleFbDxeInitialize(
+    IN EFI_HANDLE ImageHandle, IN EFI_SYSTEM_TABLE *SystemTable)
 {
+  EFI_STATUS Status = EFI_SUCCESS;
+  EFI_HANDLE hUEFIDisplayHandle = NULL;
 
-    EFI_STATUS          Status                  = EFI_SUCCESS;
-    EFI_HANDLE          hUEFIDisplayHandle      = NULL;
+  DEBUG((DEBUG_ERROR, "SimpleFbDxe: Initialize\n"));
 
-    /* Retrieve simple frame buffer from pre-SEC bootloader */
-    DEBUG((EFI_D_ERROR, "SimpleFbDxe: Retrieve MIPI FrameBuffer parameters from PCD\n"));
-    UINT32              MipiFrameBufferAddr     = FixedPcdGet32(PcdMipiFrameBufferAddress);
-    UINT32              MipiFrameBufferWidth    = FixedPcdGet32(PcdMipiFrameBufferWidth);
-    UINT32              MipiFrameBufferHeight   = FixedPcdGet32(PcdMipiFrameBufferHeight);
+  UINT32 HwFbAddr = FixedPcdGet32(PcdMipiFrameBufferAddress);
+  mWidth = FixedPcdGet32(PcdMipiFrameBufferWidth);
+  mHeight = FixedPcdGet32(PcdMipiFrameBufferHeight);
 
-    /* Sanity check */
-    if (MipiFrameBufferAddr == 0 || MipiFrameBufferWidth == 0 || MipiFrameBufferHeight == 0)
-    {
-        DEBUG((EFI_D_ERROR, "SimpleFbDxe: Invalid FrameBuffer parameters\n"));
-        return EFI_DEVICE_ERROR;
+  if (HwFbAddr == 0 || mWidth == 0 || mHeight == 0) {
+    DEBUG((DEBUG_ERROR, "SimpleFbDxe: Invalid PCD parameters\n"));
+    return EFI_DEVICE_ERROR;
+  }
+
+  mHwFb = (UINT16*)(UINTN)HwFbAddr;
+
+  // NOTE: VOP has RB_SWAP=1, so R and B are swapped in RGB565 output.
+  // We account for this in the conversion (swap R and B).
+
+  // Allocate 32bpp shadow framebuffer
+  UINTN ShadowSize = mWidth * mHeight * 4;
+  mShadowFb = AllocateZeroPool(ShadowSize);
+  if (mShadowFb == NULL) {
+    DEBUG((DEBUG_ERROR, "SimpleFbDxe: Failed to allocate shadow FB\n"));
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  // Clear hardware FB to black
+  ZeroMem((void*)mHwFb, mWidth * mHeight * 2);
+  WriteBackInvalidateDataCacheRange((void*)mHwFb, mWidth * mHeight * 2);
+
+  // Setup GOP mode info
+  Status = gBS->AllocatePool(EfiBootServicesData,
+      sizeof(EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE), (VOID**)&mDisplay.Mode);
+  ASSERT_EFI_ERROR(Status);
+  ZeroMem(mDisplay.Mode, sizeof(EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE));
+
+  Status = gBS->AllocatePool(EfiBootServicesData,
+      sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION), (VOID**)&mDisplay.Mode->Info);
+  ASSERT_EFI_ERROR(Status);
+  ZeroMem(mDisplay.Mode->Info, sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION));
+
+  mDisplay.Mode->MaxMode = 1;
+  mDisplay.Mode->Mode = 0;
+  mDisplay.Mode->Info->Version = 0;
+  mDisplay.Mode->Info->HorizontalResolution = mWidth;
+  mDisplay.Mode->Info->VerticalResolution = mHeight;
+  mDisplay.Mode->Info->PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
+  mDisplay.Mode->Info->PixelsPerScanLine = mWidth;
+  mDisplay.Mode->SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
+  mDisplay.Mode->FrameBufferBase = (EFI_PHYSICAL_ADDRESS)(UINTN)mShadowFb;
+  mDisplay.Mode->FrameBufferSize = ShadowSize;
+
+  // Configure FrameBufferBltLib with shadow buffer
+  mFrameBufferBltLibConfigureSize = 0;
+  Status = FrameBufferBltConfigure(
+      (VOID*)mShadowFb, mDisplay.Mode->Info,
+      mFrameBufferBltLibConfigure, &mFrameBufferBltLibConfigureSize);
+  if (Status == RETURN_BUFFER_TOO_SMALL) {
+    mFrameBufferBltLibConfigure = AllocatePool(mFrameBufferBltLibConfigureSize);
+    if (mFrameBufferBltLibConfigure != NULL) {
+      Status = FrameBufferBltConfigure(
+          (VOID*)mShadowFb, mDisplay.Mode->Info,
+          mFrameBufferBltLibConfigure, &mFrameBufferBltLibConfigureSize);
     }
+  }
+  ASSERT_EFI_ERROR(Status);
 
-    /* Prepare struct */
-    if (mDisplay.Mode == NULL)
-    {
-        Status = gBS->AllocatePool(
-            EfiBootServicesData,
-            sizeof(EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE),
-            (VOID **) &mDisplay.Mode
-        );
+  // Install GOP
+  Status = gBS->InstallMultipleProtocolInterfaces(
+      &hUEFIDisplayHandle,
+      &gEfiDevicePathProtocolGuid, &mDisplayDevicePath,
+      &gEfiGraphicsOutputProtocolGuid, &mDisplay,
+      NULL);
+  ASSERT_EFI_ERROR(Status);
 
-        ASSERT_EFI_ERROR(Status);
-        if (EFI_ERROR(Status)) return Status;
+  DEBUG((DEBUG_ERROR, "SimpleFbDxe: GOP installed %ux%u (shadow@%p hw@%p)\n",
+         mWidth, mHeight, mShadowFb, mHwFb));
 
-        ZeroMem(mDisplay.Mode, sizeof(EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE));
-    }
-    
-    if (mDisplay.Mode->Info == NULL)
-    {
-        Status = gBS->AllocatePool(
-            EfiBootServicesData,
-            sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION),
-            (VOID **) &mDisplay.Mode->Info
-        );
-
-        ASSERT_EFI_ERROR(Status);
-        if (EFI_ERROR(Status)) return Status;
-
-        ZeroMem(mDisplay.Mode->Info, sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION));
-    }
-
-    /* Set information */
-    mDisplay.Mode->MaxMode = 1;
-    mDisplay.Mode->Mode = 0;
-    mDisplay.Mode->Info->Version = 0;
-
-    mDisplay.Mode->Info->HorizontalResolution = MipiFrameBufferWidth;
-    mDisplay.Mode->Info->VerticalResolution = MipiFrameBufferHeight;
-
-    /* SimpleFB runs on a8r8g8b8 (VIDEO_BPP32) for DB410c */
-    UINT32 LineLength = MipiFrameBufferWidth * VNBYTES(VIDEO_BPP32);
-    UINT32 FrameBufferSize = LineLength * MipiFrameBufferHeight;
-    EFI_PHYSICAL_ADDRESS FrameBufferAddress = MipiFrameBufferAddr;
-
-    mDisplay.Mode->Info->PixelsPerScanLine = MipiFrameBufferWidth;
-    mDisplay.Mode->Info->PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
-    mDisplay.Mode->SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
-    mDisplay.Mode->FrameBufferBase = FrameBufferAddress;
-    mDisplay.Mode->FrameBufferSize = FrameBufferSize;
-
-    //
-    // Create the FrameBufferBltLib configuration.
-    //
-    Status = FrameBufferBltConfigure (
-                     (VOID *) (UINTN) mDisplay.Mode->FrameBufferBase,
-                     mDisplay.Mode->Info,
-                     mFrameBufferBltLibConfigure,
-                     &mFrameBufferBltLibConfigureSize
-                     );
-    if (Status == RETURN_BUFFER_TOO_SMALL) {
-      mFrameBufferBltLibConfigure = AllocatePool (mFrameBufferBltLibConfigureSize);
-      if (mFrameBufferBltLibConfigure != NULL) {
-        Status = FrameBufferBltConfigure (
-                         (VOID *) (UINTN) mDisplay.Mode->FrameBufferBase,
-                         mDisplay.Mode->Info,
-                         mFrameBufferBltLibConfigure,
-                         &mFrameBufferBltLibConfigureSize
-                         );
-      }
-    }
-    ASSERT_EFI_ERROR (Status);
-
-    // NO VOP changes — keep RGB565, just fill with white (0xFFFF)
-    {
-      UINT16 *Fb16 = (UINT16*)(UINTN)FrameBufferAddress;
-      UINTN total = MipiFrameBufferWidth * MipiFrameBufferHeight;
-      UINTN i;
-      for (i = 0; i < total; i++) {
-        Fb16[i] = 0xFFFF; // white in RGB565
-      }
-      WriteBackInvalidateDataCacheRange((void*)(UINTN)FrameBufferAddress,
-        MipiFrameBufferWidth * MipiFrameBufferHeight * 2);
-    }
- 
-    /* Register handle */
-    Status = gBS->InstallMultipleProtocolInterfaces(
-        &hUEFIDisplayHandle,
-        &gEfiDevicePathProtocolGuid,
-        &mDisplayDevicePath,
-        &gEfiGraphicsOutputProtocolGuid,
-        &mDisplay,
-        NULL);
-
-    ASSERT_EFI_ERROR (Status);
-
-    return Status;
-
+  return Status;
 }
