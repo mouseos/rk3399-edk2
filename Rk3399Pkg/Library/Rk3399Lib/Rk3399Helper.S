@@ -16,6 +16,26 @@
 #include <Library/ArmLib.h>
 
 ASM_FUNC(ArmPlatformPeiBootAction)
+  // Early UART marker before stack/C runtime is available. This distinguishes
+  // "SEC entry reached" from "firmware never entered".
+  MOV64 (x0, 0xFF77E028)
+  MOV32 (w1, 0x03C00140)
+  str   w1, [x0]
+
+  MOV64 (x0, 0xFF1A0000)
+  MOV32 (w2, 0x10000)
+1:
+  ldr   w1, [x0, #0x14]
+  tbnz  w1, #5, 2f
+  subs  w2, w2, #1
+  b.ne  1b
+2:
+  mov   w1, #'S'
+  strb  w1, [x0]
+  mov   w1, #'\r'
+  strb  w1, [x0]
+  mov   w1, #'\n'
+  strb  w1, [x0]
   ret
 
 //UINTN

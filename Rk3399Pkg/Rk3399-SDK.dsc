@@ -199,7 +199,6 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdTurnOffUsbLegacySupport|TRUE
 
   gEfiMdeModulePkgTokenSpaceGuid.PcdInstallAcpiSdtProtocol|TRUE
-
 [PcdsFixedAtBuild.common]
   gEfiMdePkgTokenSpaceGuid.PcdMaximumUnicodeStringLength|1000000
   gEfiMdePkgTokenSpaceGuid.PcdMaximumAsciiStringLength|1000000
@@ -208,6 +207,10 @@
   gEfiMdePkgTokenSpaceGuid.PcdDebugClearMemoryValue|0xAF
   gEfiMdePkgTokenSpaceGuid.PcdPerformanceLibraryPropertyMask|1
   gEfiMdePkgTokenSpaceGuid.PcdPostCodePropertyMask|0
+
+  # RK3399 has no persistent variable FVB driver yet. Use runtime RAM-backed
+  # emulated NV variables so DXE can boot while storage support is brought up.
+  gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
   gEfiMdePkgTokenSpaceGuid.PcdUefiLibMaxPrintBufferSize|320
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareRevision|0x20260200
 
@@ -300,7 +303,7 @@
   ## Serial Terminal
   DEFINE SERIAL_BASE = 0xFF1A0000 # UART2
   gEfiMdeModulePkgTokenSpaceGuid.PcdSerialRegisterBase|$(SERIAL_BASE)
-  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultBaudRate|115200
+  gEfiMdePkgTokenSpaceGuid.PcdUartDefaultBaudRate|1500000
   gEfiMdePkgTokenSpaceGuid.PcdUartDefaultDataBits|8
   gEfiMdePkgTokenSpaceGuid.PcdUartDefaultParity|1
   gEfiMdePkgTokenSpaceGuid.PcdUartDefaultStopBits|1
@@ -329,6 +332,12 @@
   gDwEmmcDxeTokenSpaceGuid.PcdDwEmmcDxeBaseAddress|0xFE320000
   gDwEmmcDxeTokenSpaceGuid.PcdDwEmmcDxeClockFrequencyInHz|100000000
 
+[PcdsDynamicDefault.common]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64|0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64|0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64|0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvStoreReserved|0
+
 
 ################################################################################
 #
@@ -339,7 +348,10 @@
   #
   # PEI Phase modules
   #
-  ArmPlatformPkg/PeilessSec/PeilessSec.inf
+  ArmPlatformPkg/PeilessSec/PeilessSec.inf {
+    <LibraryClasses>
+      NULL|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
+  }
 
   #
   # DXE
@@ -372,6 +384,10 @@
   MdeModulePkg/Universal/SerialDxe/SerialDxe.inf
 
   MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
+  OvmfPkg/EmuVariableFvbRuntimeDxe/Fvb.inf {
+    <LibraryClasses>
+      PlatformFvbLib|OvmfPkg/Library/PlatformFvbLibNull/PlatformFvbLibNull.inf
+  }
   MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf
 
   ArmPkg/Drivers/ArmGicDxe/ArmGicDxe.inf

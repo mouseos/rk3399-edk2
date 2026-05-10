@@ -180,7 +180,7 @@ UartInitializePort (
 
   // UART set lcr
   Lcr = MmioRead32(UartBase + UART_LCR);
-  Lcr &= ~UART_DATABIT_MASK;
+  Lcr &= ~(UART_DATABIT_MASK | PARITY_ENABLED | ONE_HALF_OR_TWO_BIT);
    // byte set
   switch (*DataBits) {
   case UART_BIT5:
@@ -201,10 +201,14 @@ UartInitializePort (
 
   // Parity set
   switch (*Parity) {
-  case 0:
+  case DefaultParity:
+  case NoParity:
     Lcr |= PARITY_DISABLED;
     break;
-  case 1:
+  case EvenParity:
+  case OddParity:
+  case MarkParity:
+  case SpaceParity:
     Lcr |= PARITY_ENABLED;
     break;
   default:
@@ -213,10 +217,12 @@ UartInitializePort (
 
   // stopbits set
   switch (*StopBits) {
-  case 0:
+  case DefaultStopBits:
+  case OneStopBit:
     Lcr |= ONE_STOP_BIT;
     break;
-  case 1:
+  case OneFiveStopBits:
+  case TwoStopBits:
     Lcr |= ONE_HALF_OR_TWO_BIT;
     break;
   default:
