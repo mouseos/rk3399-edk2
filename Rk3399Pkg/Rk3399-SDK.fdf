@@ -202,7 +202,7 @@ READ_LOCK_STATUS   = TRUE
   #
   # Video.
   #
-  INF Platform/Rockchip/Rk3399Pkg/Drivers/VopDxe/VopDxe.inf
+  INF Platform/Rockchip/Rk3399Pkg/Drivers/SimpleFbDxe/SimpleFbDxe.inf
 
 [FV.FVMAIN_COMPACT]
 FvAlignment        = 8

@@ -40,3 +40,8 @@
   
   # RK3399 Registers Base Address
   gRk3399PkgTokenSpaceGuid.PcdGrfRegisterBase|0xFF770000|UINT32|0x00000081
+
+  # SimpleFB: U-Boot framebuffer (set by U-Boot before chainloading EDK2)
+  gRk3399PkgTokenSpaceGuid.PcdMipiFrameBufferAddress|0xF6133000|UINT32|0x00000090
+  gRk3399PkgTokenSpaceGuid.PcdMipiFrameBufferWidth|1200|UINT32|0x00000091
+  gRk3399PkgTokenSpaceGuid.PcdMipiFrameBufferHeight|1920|UINT32|0x00000092

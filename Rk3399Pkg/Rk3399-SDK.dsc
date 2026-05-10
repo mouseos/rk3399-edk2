@@ -47,6 +47,7 @@
   ArmPlatformLib|Platform/Rockchip/Rk3399Pkg/Library/Rk3399Lib/Rk3399Lib.inf
   ArmPlatformSysConfigLib|Platform/Rockchip/Rk3399Pkg/Library/ArmPlatformSysConfigLibNull/ArmPlatformSysConfigLibNull.inf
 
+  FrameBufferBltLib|MdeModulePkg/Library/FrameBufferBltLib/FrameBufferBltLib.inf
   BaseLib|MdePkg/Library/BaseLib/BaseLib.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
   CacheMaintenanceLib|ArmPkg/Library/ArmCacheMaintenanceLib/ArmCacheMaintenanceLib.inf
@@ -462,7 +463,7 @@
   #
   # Video.
   #
-  Platform/Rockchip/Rk3399Pkg/Drivers/VopDxe/VopDxe.inf
+  Platform/Rockchip/Rk3399Pkg/Drivers/SimpleFbDxe/SimpleFbDxe.inf
 
   #
   # Bds
