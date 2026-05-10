@@ -198,8 +198,13 @@ RkI2CIomux (
   if (BusId == I2C_CH0) {
     MmioWrite32(RK3399_PMU_GRF_BASE + PMU_GRF_GPIO1B_IOMUX, (3 << 30) | (2 << 14));
     MmioWrite32(RK3399_PMU_GRF_BASE + PMU_GRF_GPIO1C_IOMUX, (3 << 16) | (2 << 0));
+  } else if (BusId == I2C_CH4) {
+    /* I2C4: GPIO1_B3(SCL)=func1 bits[7:6], GPIO1_B4(SDA)=func1 bits[9:8] */
+    MmioWrite32(RK3399_PMU_GRF_BASE + PMU_GRF_GPIO1B_IOMUX,
+                (3u << (6+16)) | (1u << 6) |   /* B3 = func1 */
+                (3u << (8+16)) | (1u << 8));   /* B4 = func1 */
   } else {
-	  DEBUG ((EFI_D_ERROR, "I2C iomux error, PLS check i2c config!\n"));	  
+	  DEBUG ((EFI_D_ERROR, "I2C iomux error, PLS check i2c config!\n"));
 	  return EFI_LOAD_ERROR;
   }
   

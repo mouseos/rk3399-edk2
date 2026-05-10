@@ -36,6 +36,8 @@
   NonDiscoverableDeviceRegistrationLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
+  TimerLib
+  I2CLib
   UefiLib
   TimerLib
 
