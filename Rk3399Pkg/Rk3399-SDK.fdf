@@ -93,7 +93,7 @@ READ_LOCK_STATUS   = TRUE
   #
   # PI DXE Drivers producing Architectural Protocols (EFI Services)
   #
-  INF ArmPkg/Drivers/CpuDxe/CpuDxe.inf
+  INF Platform/Rockchip/Rk3399Pkg/Drivers/Rk3399CpuDxe/Rk3399CpuDxe.inf
   INF MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
   INF MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf
   INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
@@ -227,7 +227,7 @@ READ_STATUS        = TRUE
 READ_LOCK_CAP      = TRUE
 READ_LOCK_STATUS   = TRUE
 
-  INF ArmPlatformPkg/PeilessSec/PeilessSec.inf
+  INF Platform/Rockchip/Rk3399Pkg/Sec/Rk3399PeilessSec/Rk3399PeilessSec.inf
 
   FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
     SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE {
@@ -265,8 +265,8 @@ READ_LOCK_STATUS   = TRUE
 ############################################################################
 
 #
-# These SEC rules are used for ArmPlatformPkg/PeilessSec module.
-# ArmPlatformPkg/PeilessSec is declared as a SEC module to make GenFv patch the
+# These SEC rules are used for the platform PeilessSec module.
+# Rk3399PeilessSec is declared as a SEC module to make GenFv patch the
 # UEFI Firmware to jump to the SEC entrypoint.
 #
 [Rule.ARM.SEC]

@@ -3,12 +3,12 @@ set -euo pipefail
 
 # Create SD card image for secondary bootloader mode
 # EDK2 FD is placed raw at sector 64 of the SD card
-# U-Boot (on eMMC) loads it with: mmc dev 1; mmc read 0x200000 40 800; go 0x200000
+# U-Boot (on eMMC) loads it with the mmc command printed below.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE="$(dirname "$SCRIPT_DIR")"
+WORKSPACE="${WORKSPACE:-$(dirname "$SCRIPT_DIR")}"
 FD_FILE="$WORKSPACE/Build/Rk3399-SDK/DEBUG_GCC5/FV/RK3399_SDK_UEFI.fd"
-OUT_DIR="$SCRIPT_DIR/out"
+OUT_DIR="${OUT_DIR:-$SCRIPT_DIR/out}"
 OUT_IMG="$OUT_DIR/edk2-secondary-sd.img"
 
 FD_START_SECTOR=64

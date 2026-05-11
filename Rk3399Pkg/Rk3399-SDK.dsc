@@ -65,7 +65,7 @@
 
   FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf
   UefiBootManagerLib|MdeModulePkg/Library/UefiBootManagerLib/UefiBootManagerLib.inf
-  PlatformBootManagerLib|ArmPkg/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf
+  PlatformBootManagerLib|Platform/Rockchip/Rk3399Pkg/Library/Rk3399PlatformBootManagerLib/Rk3399PlatformBootManagerLib.inf
   BootLogoLib|MdeModulePkg/Library/BootLogoLib/BootLogoLib.inf
   CustomizedDisplayLib|MdeModulePkg/Library/CustomizedDisplayLib/CustomizedDisplayLib.inf
 
@@ -357,7 +357,7 @@
   #
   # PEI Phase modules
   #
-  ArmPlatformPkg/PeilessSec/PeilessSec.inf {
+  Platform/Rockchip/Rk3399Pkg/Sec/Rk3399PeilessSec/Rk3399PeilessSec.inf {
     <LibraryClasses>
       NULL|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
   }
@@ -378,7 +378,7 @@
   #
   # Architectural Protocols
   #
-  ArmPkg/Drivers/CpuDxe/CpuDxe.inf
+  Platform/Rockchip/Rk3399Pkg/Drivers/Rk3399CpuDxe/Rk3399CpuDxe.inf
   MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
   MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf
   MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf

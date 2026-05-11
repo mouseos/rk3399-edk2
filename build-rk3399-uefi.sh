@@ -8,7 +8,7 @@ TOOLCHAIN="GCC5"
 GCC5_AARCH64_PREFIX="${GCC5_AARCH64_PREFIX:-aarch64-linux-gnu-}"
 SKIP_FETCH=0
 
-EDK2_COMMIT="cb5cb53a00e376db9b39a89bcbab974c3c23cc3f"
+EDK2_COMMIT="b7a715f7c03c45c6b4575bf88596bfd79658b8ce"
 EDK2_NON_OSI_COMMIT="7ac12d81e02b323bffdf1ef3c188ea33c2185c91"
 EDK2_PLATFORMS_COMMIT="b5e92aa284c59a22e7e38f79125a20f774ab7027"
 
@@ -84,6 +84,7 @@ clone_or_update() {
     git clone "$url" "$dir"
   else
     log "fetching $(basename "$dir")"
+    git -C "$dir" remote set-url origin "$url"
     git -C "$dir" fetch --tags origin
   fi
 
@@ -104,7 +105,7 @@ prepare_repositories() {
   mkdir -p "$WORKSPACE"
 
   if [[ "$SKIP_FETCH" -eq 0 ]]; then
-    clone_or_update https://github.com/mouseos/edk2.git \
+    clone_or_update https://github.com/tianocore/edk2.git \
       "$WORKSPACE/edk2" "$EDK2_COMMIT"
     clone_or_update https://github.com/tianocore/edk2-non-osi.git \
       "$WORKSPACE/edk2-non-osi" "$EDK2_NON_OSI_COMMIT"
