@@ -129,6 +129,11 @@ STATIC PLATFORM_USB_KEYBOARD  mUsbKeyboard = {
   }
 };
 
+STATIC EFI_EVENT  mConsoleInputNotifyEvent;
+STATIC VOID       *mSimpleTextInNotifyRegistration;
+STATIC VOID       *mSimpleTextInExNotifyRegistration;
+STATIC BOOLEAN    mConsoleInputRefreshInProgress;
+
 /**
   Check if the handle satisfies a particular condition.
 
@@ -566,6 +571,117 @@ PreferUsbKeyboardConsoleInput (
 
 STATIC
 VOID
+RefreshConsoleInput (
+  VOID
+  )
+{
+  if (mConsoleInputRefreshInProgress) {
+    return;
+  }
+
+  mConsoleInputRefreshInProgress = TRUE;
+
+  ConnectConsoleInputStack ();
+  if (!PreferConSplitterConsoleInput ()) {
+    PreferUsbKeyboardConsoleInput ();
+  }
+
+  mConsoleInputRefreshInProgress = FALSE;
+}
+
+STATIC
+VOID
+DrainProtocolNotify (
+  IN VOID  *Registration
+  )
+{
+  EFI_STATUS  Status;
+  EFI_HANDLE  Handle;
+  UINTN       BufferSize;
+
+  if (Registration == NULL) {
+    return;
+  }
+
+  do {
+    BufferSize = sizeof (Handle);
+    Status     = gBS->LocateHandle (
+                        ByRegisterNotify,
+                        NULL,
+                        Registration,
+                        &BufferSize,
+                        &Handle
+                        );
+  } while (!EFI_ERROR (Status));
+}
+
+STATIC
+VOID
+EFIAPI
+ConsoleInputNotifyCallback (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  (VOID)Event;
+  (VOID)Context;
+
+  DrainProtocolNotify (mSimpleTextInNotifyRegistration);
+  DrainProtocolNotify (mSimpleTextInExNotifyRegistration);
+  RefreshConsoleInput ();
+}
+
+STATIC
+VOID
+RegisterConsoleInputNotify (
+  VOID
+  )
+{
+  EFI_STATUS  Status;
+
+  if (mConsoleInputNotifyEvent != NULL) {
+    return;
+  }
+
+  Status = gBS->CreateEvent (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_CALLBACK,
+                  ConsoleInputNotifyCallback,
+                  NULL,
+                  &mConsoleInputNotifyEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    return;
+  }
+
+  Status = gBS->RegisterProtocolNotify (
+                  &gEfiSimpleTextInProtocolGuid,
+                  mConsoleInputNotifyEvent,
+                  &mSimpleTextInNotifyRegistration
+                  );
+  if (EFI_ERROR (Status)) {
+    mSimpleTextInNotifyRegistration = NULL;
+  }
+
+  Status = gBS->RegisterProtocolNotify (
+                  &gEfiSimpleTextInputExProtocolGuid,
+                  mConsoleInputNotifyEvent,
+                  &mSimpleTextInExNotifyRegistration
+                  );
+  if (EFI_ERROR (Status)) {
+    mSimpleTextInExNotifyRegistration = NULL;
+  }
+
+  if ((mSimpleTextInNotifyRegistration == NULL) &&
+      (mSimpleTextInExNotifyRegistration == NULL))
+  {
+    gBS->CloseEvent (mConsoleInputNotifyEvent);
+    mConsoleInputNotifyEvent = NULL;
+  }
+}
+
+STATIC
+VOID
 PlatformRegisterFvBootOption (
   CONST EFI_GUID  *FileGuid,
   CHAR16          *Description,
@@ -932,6 +1048,8 @@ PlatformBootManagerBeforeConsole (
     NULL
     );
 
+  RegisterConsoleInputNotify ();
+
   //
   // Add the hardcoded serial console device path to ConIn, ConOut, ErrOut.
   //
@@ -1172,10 +1290,7 @@ PlatformBootManagerAfterConsole (
   UINTN                         PosY;
   EFI_INPUT_KEY                 Key;
 
-  ConnectConsoleInputStack ();
-  if (!PreferConSplitterConsoleInput ()) {
-    PreferUsbKeyboardConsoleInput ();
-  }
+  RefreshConsoleInput ();
 
   FirmwareVerLength = StrLen (PcdGetPtr (PcdFirmwareVersionString));
 
