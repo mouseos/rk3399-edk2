@@ -1,0 +1,181 @@
+/** @file
+  Processor Properties Topology Table (PPTT) for RK3399.
+
+  The topology mirrors the RK3399 CPU map used by U-Boot/Linux DTS:
+  four Cortex-A53 cores in cluster 0 and two Cortex-A72 cores in cluster 1.
+
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include <IndustryStandard/Acpi.h>
+
+#include "AcpiHeader.h"
+
+#define FIELD_OFFSET(type, name)  __builtin_offsetof(type, name)
+
+#define SIZE_32KB   0x00008000
+#define SIZE_48KB   0x0000C000
+#define SIZE_512KB  0x00080000
+#define SIZE_1MB    0x00100000
+
+#pragma pack (1)
+
+typedef struct {
+  EFI_ACPI_6_3_PPTT_STRUCTURE_PROCESSOR  Core;
+  UINT32                                 Offset[2];
+  EFI_ACPI_6_3_PPTT_STRUCTURE_CACHE      DCache;
+  EFI_ACPI_6_3_PPTT_STRUCTURE_CACHE      ICache;
+} RK3399_PPTT_CORE;
+
+typedef struct {
+  EFI_ACPI_6_3_PPTT_STRUCTURE_PROCESSOR  Cluster;
+  UINT32                                 Offset[1];
+  EFI_ACPI_6_3_PPTT_STRUCTURE_CACHE      L2Cache;
+  RK3399_PPTT_CORE                       Cores[4];
+} RK3399_PPTT_LITTLE_CLUSTER;
+
+typedef struct {
+  EFI_ACPI_6_3_PPTT_STRUCTURE_PROCESSOR  Cluster;
+  UINT32                                 Offset[1];
+  EFI_ACPI_6_3_PPTT_STRUCTURE_CACHE      L2Cache;
+  RK3399_PPTT_CORE                       Cores[2];
+} RK3399_PPTT_BIG_CLUSTER;
+
+typedef struct {
+  EFI_ACPI_6_3_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_HEADER  Pptt;
+  EFI_ACPI_6_3_PPTT_STRUCTURE_PROCESSOR                    Package;
+  RK3399_PPTT_LITTLE_CLUSTER                               Little;
+  RK3399_PPTT_BIG_CLUSTER                                  Big;
+} RK3399_PPTT_TABLE;
+
+#pragma pack ()
+
+#define PPTT_CACHE(next_level, cache_size, cache_sets, cache_assoc, cache_alloc, cache_type, cache_policy) \
+  {                                                                                           \
+    EFI_ACPI_6_3_PPTT_TYPE_CACHE,                                                             \
+    sizeof (EFI_ACPI_6_3_PPTT_STRUCTURE_CACHE),                                               \
+    { 0 },                                                                                     \
+    {                                                                                          \
+      1,                                                                                        \
+      1,                                                                                        \
+      1,                                                                                        \
+      1,                                                                                        \
+      1,                                                                                        \
+      1,                                                                                        \
+      1,                                                                                        \
+    },                                                                                         \
+    next_level,                                                                                \
+    cache_size,                                                                                 \
+    cache_sets,                                                                                 \
+    cache_assoc,                                                                                \
+    {                                                                                          \
+      cache_alloc,                                                                              \
+      cache_type,                                                                               \
+      cache_policy,                                                                             \
+    },                                                                                         \
+    64                                                                                         \
+  }
+
+#define PPTT_CORE(cluster_name, core_path, acpi_id, d_size, d_sets, d_assoc, i_size, i_sets, i_assoc) \
+  {                                                                                                  \
+    {                                                                                                \
+      EFI_ACPI_6_3_PPTT_TYPE_PROCESSOR,                                                              \
+      FIELD_OFFSET (RK3399_PPTT_CORE, DCache),                                                       \
+      { 0 },                                                                                         \
+      {                                                                                              \
+        EFI_ACPI_6_3_PPTT_PACKAGE_NOT_PHYSICAL,                                                       \
+        EFI_ACPI_6_3_PPTT_PROCESSOR_ID_VALID,                                                         \
+        EFI_ACPI_6_3_PPTT_PROCESSOR_IS_NOT_THREAD,                                                    \
+        EFI_ACPI_6_3_PPTT_NODE_IS_LEAF,                                                               \
+        EFI_ACPI_6_3_PPTT_IMPLEMENTATION_IDENTICAL,                                                   \
+      },                                                                                             \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, cluster_name),                                                 \
+      acpi_id,                                                                                        \
+      2,                                                                                              \
+    },                                                                                               \
+    {                                                                                                \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, core_path.DCache),                                             \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, core_path.ICache),                                             \
+    },                                                                                               \
+    PPTT_CACHE (                                                                                     \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, cluster_name.L2Cache),                                        \
+      d_size, d_sets, d_assoc,                                                                       \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_ALLOCATION_READ_WRITE,                                           \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_CACHE_TYPE_DATA,                                                 \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_WRITE_POLICY_WRITE_BACK                                          \
+      ),                                                                                             \
+    PPTT_CACHE (                                                                                     \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, cluster_name.L2Cache),                                        \
+      i_size, i_sets, i_assoc,                                                                       \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_ALLOCATION_READ,                                                 \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_CACHE_TYPE_INSTRUCTION,                                          \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_WRITE_POLICY_WRITE_BACK                                          \
+      )                                                                                              \
+  }
+
+#define PPTT_CLUSTER(cluster_name, l2_size, l2_sets, l2_assoc)                  \
+  {                                                                             \
+    {                                                                           \
+      EFI_ACPI_6_3_PPTT_TYPE_PROCESSOR,                                         \
+      FIELD_OFFSET (RK3399_PPTT_LITTLE_CLUSTER, L2Cache),                       \
+      { 0 },                                                                    \
+      {                                                                         \
+        EFI_ACPI_6_3_PPTT_PACKAGE_NOT_PHYSICAL,                                 \
+        EFI_ACPI_6_3_PPTT_PROCESSOR_ID_INVALID,                                 \
+        EFI_ACPI_6_3_PPTT_PROCESSOR_IS_NOT_THREAD,                              \
+        EFI_ACPI_6_3_PPTT_NODE_IS_NOT_LEAF,                                     \
+        EFI_ACPI_6_3_PPTT_IMPLEMENTATION_IDENTICAL,                             \
+      },                                                                        \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, Package),                                \
+      0,                                                                        \
+      1,                                                                        \
+    },                                                                          \
+    {                                                                           \
+      FIELD_OFFSET (RK3399_PPTT_TABLE, cluster_name.L2Cache),                   \
+    },                                                                          \
+    PPTT_CACHE (                                                                \
+      0,                                                                        \
+      l2_size, l2_sets, l2_assoc,                                               \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_ALLOCATION_READ_WRITE,                      \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_CACHE_TYPE_UNIFIED,                         \
+      EFI_ACPI_6_3_CACHE_ATTRIBUTES_WRITE_POLICY_WRITE_BACK                     \
+      )
+
+STATIC RK3399_PPTT_TABLE Pptt = {
+  {
+    __ACPI_HEADER (
+      EFI_ACPI_6_3_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_STRUCTURE_SIGNATURE,
+      RK3399_PPTT_TABLE,
+      EFI_ACPI_6_3_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_REVISION
+      ),
+  },
+  {
+    EFI_ACPI_6_3_PPTT_TYPE_PROCESSOR,
+    sizeof (EFI_ACPI_6_3_PPTT_STRUCTURE_PROCESSOR),
+    { 0 },
+    {
+      EFI_ACPI_6_3_PPTT_PACKAGE_PHYSICAL,
+      EFI_ACPI_6_3_PPTT_PROCESSOR_ID_INVALID,
+      EFI_ACPI_6_3_PPTT_PROCESSOR_IS_NOT_THREAD,
+      EFI_ACPI_6_3_PPTT_NODE_IS_NOT_LEAF,
+      EFI_ACPI_6_3_PPTT_IMPLEMENTATION_NOT_IDENTICAL,
+    },
+    0,
+    0,
+    0,
+  },
+  PPTT_CLUSTER (Little, SIZE_512KB, 512, 16),
+  {
+    PPTT_CORE (Little, Little.Cores[0], 0, SIZE_32KB, 128, 4, SIZE_32KB, 256, 2),
+    PPTT_CORE (Little, Little.Cores[1], 1, SIZE_32KB, 128, 4, SIZE_32KB, 256, 2),
+    PPTT_CORE (Little, Little.Cores[2], 2, SIZE_32KB, 128, 4, SIZE_32KB, 256, 2),
+    PPTT_CORE (Little, Little.Cores[3], 3, SIZE_32KB, 128, 4, SIZE_32KB, 256, 2),
+  } },
+  PPTT_CLUSTER (Big, SIZE_1MB, 1024, 16),
+  {
+    PPTT_CORE (Big, Big.Cores[0], 16, SIZE_32KB, 256, 2, SIZE_48KB, 256, 3),
+    PPTT_CORE (Big, Big.Cores[1], 17, SIZE_32KB, 256, 2, SIZE_48KB, 256, 3),
+  } },
+};
+
+VOID * CONST ReferenceAcpiTable = &Pptt;

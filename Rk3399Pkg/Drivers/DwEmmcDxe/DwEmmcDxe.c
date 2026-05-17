@@ -41,6 +41,8 @@
 #define DWEMMC_BLOCK_SIZE               512
 #define DWEMMC_DMA_BUF_SIZE             (512 * 8)
 #define DWEMMC_MAX_DESC_PAGES           512
+#define DWEMMC_CMD_SETTLE_US            1000
+#define DWEMMC_SD_SWITCH_SETTLE_US      15000
 
 typedef struct {
   UINT32                        Des0;
@@ -54,6 +56,21 @@ DWEMMC_IDMAC_DESCRIPTOR   *gpIdmacDesc;
 EFI_GUID mDwEmmcDevicePathGuid = EFI_CALLER_ID_GUID;
 STATIC UINT32 mDwEmmcCommand;
 STATIC UINT32 mDwEmmcArgument;
+
+STATIC
+UINTN
+DwEmmcCommandSettleDelay (
+  IN MMC_CMD                    MmcCmd
+  )
+{
+  switch (MMC_GET_INDX (MmcCmd)) {
+  case MMC_INDX (6):
+  case MMC_INDX (51):
+    return DWEMMC_SD_SWITCH_SETTLE_US;
+  default:
+    return DWEMMC_CMD_SETTLE_US;
+  }
+}
 
 EFI_STATUS
 DwEmmcReadBlockData (
@@ -291,7 +308,7 @@ SendCommand (
 
   DEBUG ((DW_DBG, "%a(): MmcCmd 0x%x(%d),Argument 0x%x \n", __func__, MmcCmd, MmcCmd&0x3f, Argument));
 
-  MicroSecondDelay(15000);
+  MicroSecondDelay (DwEmmcCommandSettleDelay (MmcCmd));
 
   // Wait until MMC is idle
   do {

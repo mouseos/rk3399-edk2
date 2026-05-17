@@ -24,8 +24,10 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
          *   zmooth_Source/kernel/arch/arm64/boot/dts/rockchip/
          *   rk3399-evb-rev3-android-lp4.dts
          *
-         * Rockchip-specific devices expose RKCPxxxx IDs for future Windows
-         * drivers and PRP0001/_DSD compatible strings for Linux diagnostics.
+         * Keep the ACPI namespace conservative. Linux Rockchip drivers are
+         * mostly DT-oriented, so incomplete PRP0001 devices can bind without
+         * their required clocks, resets, phys, or syscon links and destabilize
+         * boot. Enable devices here only after their ACPI description is enough.
          */
         Device (CPU0)
         {
@@ -50,12 +52,12 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
         Device (CPU4)
         {
             Name (_HID, "ACPI0007" /* Processor Device */)  // _HID: Hardware ID
-            Name (_UID, 0x101)  // _UID: Unique ID
+            Name (_UID, 0x010)  // _UID: Unique ID
         }
         Device (CPU5)
         {
             Name (_HID, "ACPI0007" /* Processor Device */)  // _HID: Hardware ID
-            Name (_UID, 0x102)  // _UID: Unique ID
+            Name (_UID, 0x011)  // _UID: Unique ID
         }
 
         Device (CRU0)
@@ -63,7 +65,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0001")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -83,7 +85,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0002")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -103,7 +105,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0003")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -123,7 +125,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0004")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -143,7 +145,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0010")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -161,7 +163,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0010")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x01)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -179,7 +181,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0010")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x02)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -197,7 +199,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0010")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x03)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -215,7 +217,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_HID, "RKCP0010")
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x04)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -234,7 +236,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
             Name (_CCA, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -259,8 +261,8 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
 
         Device (SDMC)
         {
-            Name (_HID, "RKCP0020")
-            Name (_CID, Package () { "PRP0001" })
+            Name (_HID, "PRP0001")
+            Name (_CID, Package () { "RKCP0020" })
             Name (_UID, 0x01)
             Name (_CCA, 0x00)
             Method (_STA, 0, NotSerialized) { Return (0x0F) }
@@ -269,10 +271,12 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
                 Package ()
                 {
-                    Package () { "compatible", Package () { "rockchip,rk3399-dw-mshc", "rockchip,rk3288-dw-mshc" } },
+                    Package () { "compatible", "snps,dw-mshc" },
                     Package () { "bus-width", 4 },
-                    Package () { "cap-mmc-highspeed", 1 },
+                    Package () { "clock-frequency", 50000000 },
+                    Package () { "clock-freq-min-max", Package () { 400000, 50000000 } },
                     Package () { "cap-sd-highspeed", 1 },
+                    Package () { "broken-cd", 1 },
                     Package () { "disable-wp", 1 },
                     Package () { "supports-sd", 1 },
                     Package () { "fifo-depth", 0x100 },
@@ -291,7 +295,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
             Name (_CID, Package () { "PRP0001" })
             Name (_UID, 0x00)
             Name (_CCA, 0x00)
-            Method (_STA, 0, NotSerialized) { Return (0x0F) }
+            Method (_STA, 0, NotSerialized) { Return (0x00) }
             Name (_DSD, Package ()
             {
                 ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -340,7 +344,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
                 Name (_HID, "RKCP0040")
                 Name (_CID, Package () { "PRP0001" })
                 Name (_UID, 0x01)
-                Method (_STA, 0, NotSerialized) { Return (0x0F) }
+                Method (_STA, 0, NotSerialized) { Return (0x00) }
                 Name (_DSD, Package ()
                 {
                     ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -359,7 +363,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
                 Name (_HID, "RKCP0041")
                 Name (_CID, Package () { "PRP0001" })
                 Name (_UID, 0x00)
-                Method (_STA, 0, NotSerialized) { Return (0x0F) }
+                Method (_STA, 0, NotSerialized) { Return (0x00) }
                 Name (_DSD, Package ()
                 {
                     ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -427,7 +431,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
                 Name (_HID, "RKCP0042")
                 Name (_CID, Package () { "PRP0001" })
                 Name (_UID, 0x00)
-                Method (_STA, 0, NotSerialized) { Return (0x0F) }
+                Method (_STA, 0, NotSerialized) { Return (0x00) }
                 Name (_DSD, Package ()
                 {
                     ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),
@@ -474,7 +478,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "RKCP  ", "RK3399  ", 3)
                 Name (_HID, "RKCP0040")
                 Name (_CID, Package () { "PRP0001" })
                 Name (_UID, 0x00)
-                Method (_STA, 0, NotSerialized) { Return (0x0F) }
+                Method (_STA, 0, NotSerialized) { Return (0x00) }
                 Name (_DSD, Package ()
                 {
                     ToUUID ("daffd814-6eba-4d8c-8a91-bc9bbf4aa301"),

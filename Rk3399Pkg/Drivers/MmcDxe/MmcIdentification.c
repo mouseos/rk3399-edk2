@@ -367,12 +367,12 @@ InitializeSdMmcDevice (
 
   Status = MmcHost->SendCommand (MmcHost, MMC_CMD55, CmdArg);
   if (EFI_ERROR (Status)) {
-    DEBUG ((EFI_D_ERROR, "%a(MMC_CMD55): Error and Status = %r\n", Status));
+    DEBUG ((EFI_D_ERROR, "%a(MMC_CMD55): Error and Status = %r\n", __func__, Status));
     return Status;
   }
   Status = MmcHost->ReceiveResponse (MmcHost, MMC_RESPONSE_TYPE_R1, Response);
   if (EFI_ERROR (Status)) {
-    DEBUG ((EFI_D_ERROR, "%a(MMC_CMD55): Error and Status = %r\n", Status));
+    DEBUG ((EFI_D_ERROR, "%a(MMC_CMD55): Error and Status = %r\n", __func__, Status));
     return Status;
   }
   if ((Response[0] & MMC_STATUS_APP_CMD) == 0) {
@@ -418,40 +418,30 @@ InitializeSdMmcDevice (
     }
   }
   if (CccSwitch) {
-    /* SD Switch, Mode:1, Group:0, Value:1 */
-    CmdArg = 1 << 31 | 0x00FFFFFF;
-    CmdArg &= ~(0xF << (0 * 4));
-    CmdArg |= 1 << (0 * 4);
-    Status = MmcHost->SendCommand (MmcHost, MMC_CMD6, CmdArg);
-    if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "%a(MMC_CMD6): Error and Status = %r\n", Status));
-       return Status;
-    } else {
-      Status = MmcHost->ReadBlockData (MmcHost, 0, 64, Buffer);
-      if (EFI_ERROR (Status)) {
-        DEBUG ((EFI_D_ERROR, "%a(MMC_CMD6): ReadBlockData Error and Status = %r\n", Status));
-        return Status;
-      }
-    }
+    /*
+      Avoid SD high-speed switching during firmware boot. Some cards/controllers
+      fail the CMD6 data phase here, which is non-fatal for 25/26 MHz operation.
+    */
+    DEBUG ((EFI_D_INFO, "%a(MMC_CMD6): Skip SD high-speed switch\n", __func__));
   }
   if (Scr.SD_BUS_WIDTHS & SD_BUS_WIDTH_4BIT) {
     CmdArg = MmcHostInstance->CardInfo.RCA << 16;
     Status = MmcHost->SendCommand (MmcHost, MMC_CMD55, CmdArg);
     if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "%a(MMC_CMD55): Error and Status = %r\n", Status));
+      DEBUG ((EFI_D_ERROR, "%a(MMC_CMD55): Error and Status = %r\n", __func__, Status));
       return Status;
     }
     /* Width: 4 */
     Status = MmcHost->SendCommand (MmcHost, MMC_CMD6, 2);
     if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "%a(MMC_CMD6): Error and Status = %r\n", Status));
+      DEBUG ((EFI_D_ERROR, "%a(MMC_CMD6): Error and Status = %r\n", __func__, Status));
       return Status;
     }
   }
   if (MMC_HOST_HAS_SETIOS(MmcHost)) {
     Status = MmcHost->SetIos (MmcHost, 26 * 1000 * 1000, 4, EMMCBACKWARD);
     if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "%a(SetIos): Error and Status = %r\n", Status));
+      DEBUG ((EFI_D_ERROR, "%a(SetIos): Error and Status = %r\n", __func__, Status));
       return Status;
     }
   }
