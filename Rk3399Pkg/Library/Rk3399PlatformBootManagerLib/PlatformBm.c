@@ -1371,6 +1371,9 @@ PlatformBootManagerWaitCallback (
   EFI_STATUS                           Status;
 
   Timeout = PcdGet16 (PcdPlatformBootTimeOut);
+  if (Timeout == 0) {
+    return;
+  }
 
   Black.Raw = 0x00000000;
   White.Raw = 0x00FFFFFF;

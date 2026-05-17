@@ -203,10 +203,10 @@
 
   gEfiMdeModulePkgTokenSpaceGuid.PcdInstallAcpiSdtProtocol|TRUE
 [PcdsPatchableInModule]
-  gEfiMdeModulePkgTokenSpaceGuid.PcdVideoHorizontalResolution|1920
-  gEfiMdeModulePkgTokenSpaceGuid.PcdVideoVerticalResolution|1200
-  gEfiMdeModulePkgTokenSpaceGuid.PcdConOutColumn|240
-  gEfiMdeModulePkgTokenSpaceGuid.PcdConOutRow|63
+  gEfiMdeModulePkgTokenSpaceGuid.PcdVideoHorizontalResolution|1200
+  gEfiMdeModulePkgTokenSpaceGuid.PcdVideoVerticalResolution|1920
+  gEfiMdeModulePkgTokenSpaceGuid.PcdConOutColumn|150
+  gEfiMdeModulePkgTokenSpaceGuid.PcdConOutRow|90
 
 [PcdsFixedAtBuild.common]
   gEfiMdePkgTokenSpaceGuid.PcdMaximumUnicodeStringLength|1000000
@@ -256,7 +256,9 @@
  !if $(TARGET) == RELEASE
   gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000000F
  !else
-  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000004F
+  # Keep DEBUG images usable on slow UART: INFO/LOAD floods memory-attribute
+  # and image-loader logs during Linux boot.
+  gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x80000003
  !endif
 
   gEfiMdePkgTokenSpaceGuid.PcdReportStatusCodePropertyMask|0x07
@@ -326,7 +328,7 @@
   gArmTokenSpaceGuid.PcdGicDistributorBase|0xFEE00000
   gArmTokenSpaceGuid.PcdGicRedistributorsBase|0xFEF00000
 
-  gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|10
+  gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|0
 
   # GUID of the UI app
   gEfiMdeModulePkgTokenSpaceGuid.PcdBootManagerMenuFile|{ 0x21, 0xaa, 0x2c, 0x46, 0x14, 0x76, 0x03, 0x45, 0x83, 0x6e, 0x8a, 0xb6, 0xf4, 0x66, 0x23, 0x31 }

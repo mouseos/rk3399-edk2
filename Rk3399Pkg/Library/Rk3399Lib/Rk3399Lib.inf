@@ -47,3 +47,6 @@
   gArmTokenSpaceGuid.PcdArmPrimaryCoreMask
   gArmTokenSpaceGuid.PcdSystemMemoryBase
   gArmTokenSpaceGuid.PcdSystemMemorySize
+  gRk3399PkgTokenSpaceGuid.PcdMipiFrameBufferAddress
+  gRk3399PkgTokenSpaceGuid.PcdMipiFrameBufferWidth
+  gRk3399PkgTokenSpaceGuid.PcdMipiFrameBufferHeight

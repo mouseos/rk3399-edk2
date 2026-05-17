@@ -27,6 +27,7 @@
   PcdLib
   FrameBufferBltLib
   CacheMaintenanceLib
+  IoLib
 
 [Protocols]
   gEfiGraphicsOutputProtocolGuid

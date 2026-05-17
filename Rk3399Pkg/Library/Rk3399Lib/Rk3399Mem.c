@@ -32,13 +32,81 @@
 #define DDR_ATTRIBUTES_UNCACHED         ARM_MEMORY_REGION_ATTRIBUTE_UNCACHED_UNBUFFERED
 
 #define EXTRA_SYSTEM_MEMORY_BASE  0x40000000
+#define RK3399_VENDOR_DRAM_HOLE_BASE  0x08400000
+#define RK3399_VENDOR_DRAM_HOLE_SIZE  0x01E00000
+#define RK3399_FRAMEBUFFER_RESERVED_INDEX  2
 
 STATIC struct Rk3399ReservedMemory {
   EFI_PHYSICAL_ADDRESS         Offset;
   EFI_PHYSICAL_ADDRESS         Size;
 } Rk3399ReservedMemoryBuffer [] = {
-  { 0x00000000, 0x200000 }    // Reserved for ATF
+  { 0x00000000, 0x200000 },   // Reserved for ATF
+  // Matches the vendor boot memory banks: 0x08400000-0x0A200000 is not RAM.
+  { RK3399_VENDOR_DRAM_HOLE_BASE, RK3399_VENDOR_DRAM_HOLE_SIZE },
+  { 0x00000000, 0x000000 }    // Filled with the active framebuffer range
 };
+
+STATIC
+VOID
+BuildMemoryRegionHobs (
+  IN EFI_PHYSICAL_ADDRESS        RegionBase,
+  IN UINT64                      RegionSize,
+  IN EFI_RESOURCE_ATTRIBUTE_TYPE ResourceAttributes
+  )
+{
+  EFI_PHYSICAL_ADDRESS RegionEnd;
+  EFI_PHYSICAL_ADDRESS CurrentBase;
+  EFI_PHYSICAL_ADDRESS ReservedBase;
+  EFI_PHYSICAL_ADDRESS ReservedEnd;
+  EFI_PHYSICAL_ADDRESS OverlapBase;
+  EFI_PHYSICAL_ADDRESS OverlapEnd;
+  UINTN                Index;
+  UINTN                Count;
+
+  if (RegionSize == 0) {
+    return;
+  }
+
+  RegionEnd = RegionBase + RegionSize;
+  CurrentBase = RegionBase;
+  Count = sizeof (Rk3399ReservedMemoryBuffer) / sizeof (struct Rk3399ReservedMemory);
+
+  for (Index = 0; Index < Count; Index++) {
+    ReservedBase = Rk3399ReservedMemoryBuffer[Index].Offset;
+    ReservedEnd = ReservedBase + Rk3399ReservedMemoryBuffer[Index].Size;
+
+    if ((ReservedEnd <= CurrentBase) || (ReservedBase >= RegionEnd)) {
+      continue;
+    }
+
+    OverlapBase = (ReservedBase > CurrentBase) ? ReservedBase : CurrentBase;
+    OverlapEnd = (ReservedEnd < RegionEnd) ? ReservedEnd : RegionEnd;
+
+    if (CurrentBase < OverlapBase) {
+      BuildResourceDescriptorHob (
+        EFI_RESOURCE_SYSTEM_MEMORY,
+        ResourceAttributes,
+        CurrentBase,
+        OverlapBase - CurrentBase);
+    }
+
+    BuildResourceDescriptorHob (
+      EFI_RESOURCE_MEMORY_RESERVED,
+      EFI_RESOURCE_ATTRIBUTE_PRESENT,
+      OverlapBase,
+      OverlapEnd - OverlapBase);
+
+    CurrentBase = OverlapEnd;
+  }
+
+  if (CurrentBase < RegionEnd) {
+    BuildResourceDescriptorHob (
+      EFI_RESOURCE_SYSTEM_MEMORY,
+      ResourceAttributes,
+      CurrentBase,
+      RegionEnd - CurrentBase);
+  }
+}
 
 STATIC
 UINT64
@@ -114,17 +182,25 @@ ArmPlatformGetVirtualMemoryMap (
   )
 {
   ARM_MEMORY_REGION_ATTRIBUTES  CacheAttributes;
-  UINTN                         Index = 0, Count, ReservedTop;
+  UINTN                         Index = 0;
   ARM_MEMORY_REGION_DESCRIPTOR  *VirtualMemoryTable;
-  EFI_PEI_HOB_POINTERS          NextHob;
   EFI_RESOURCE_ATTRIBUTE_TYPE   ResourceAttributes;
-  UINT64                        ResourceLength;
-  EFI_PHYSICAL_ADDRESS          ResourceTop;
   UINT64                        MemorySize, AdditionalMemorySize;
+  EFI_PHYSICAL_ADDRESS          FrameBufferBase;
+  UINT64                        FrameBufferSize;
 
   MemorySize = Rk3399InitMemorySize ();
   if (MemorySize == 0) {
     MemorySize = PcdGet64 (PcdSystemMemorySize);
+  }
+
+  FrameBufferBase = FixedPcdGet32 (PcdMipiFrameBufferAddress);
+  FrameBufferSize = (UINT64)FixedPcdGet32 (PcdMipiFrameBufferWidth) *
+                    FixedPcdGet32 (PcdMipiFrameBufferHeight) * 2;
+  if (FrameBufferSize != 0) {
+    Rk3399ReservedMemoryBuffer[RK3399_FRAMEBUFFER_RESERVED_INDEX].Offset = FrameBufferBase;
+    Rk3399ReservedMemoryBuffer[RK3399_FRAMEBUFFER_RESERVED_INDEX].Size =
+      EFI_PAGES_TO_SIZE (EFI_SIZE_TO_PAGES (FrameBufferSize));
   }
 
   ResourceAttributes = (
@@ -136,48 +212,12 @@ ArmPlatformGetVirtualMemoryMap (
     EFI_RESOURCE_ATTRIBUTE_TESTED
   );
 
-  // Create initial Base Hob for system memory.
-  BuildResourceDescriptorHob (
-    EFI_RESOURCE_SYSTEM_MEMORY,
-    ResourceAttributes,
+  // Create memory HOBs, excluding display framebuffer from normal RAM so
+  // Linux cannot allocate over the active scanout buffer during early boot.
+  BuildMemoryRegionHobs (
     PcdGet64 (PcdSystemMemoryBase),
-    PcdGet64 (PcdSystemMemorySize)
-  );
-
-  NextHob.Raw = GetHobList ();
-  Count = sizeof (Rk3399ReservedMemoryBuffer) / sizeof (struct Rk3399ReservedMemory);
-  while ((NextHob.Raw = GetNextHob (EFI_HOB_TYPE_RESOURCE_DESCRIPTOR, NextHob.Raw)) != NULL) {
-    if (Index >= Count) {
-      break;
-    }
-    if ((NextHob.ResourceDescriptor->ResourceType == EFI_RESOURCE_SYSTEM_MEMORY) &&
-        (Rk3399ReservedMemoryBuffer[Index].Offset >= NextHob.ResourceDescriptor->PhysicalStart) &&
-        ((Rk3399ReservedMemoryBuffer[Index].Offset + Rk3399ReservedMemoryBuffer[Index].Size) <=
-         NextHob.ResourceDescriptor->PhysicalStart + NextHob.ResourceDescriptor->ResourceLength)) {
-      ResourceAttributes = NextHob.ResourceDescriptor->ResourceAttribute;
-      ResourceLength = NextHob.ResourceDescriptor->ResourceLength;
-      ResourceTop = NextHob.ResourceDescriptor->PhysicalStart + ResourceLength;
-      ReservedTop = Rk3399ReservedMemoryBuffer[Index].Offset + Rk3399ReservedMemoryBuffer[Index].Size;
-
-      // Create the System Memory HOB for the reserved buffer
-      BuildResourceDescriptorHob (EFI_RESOURCE_MEMORY_RESERVED,
-                                  EFI_RESOURCE_ATTRIBUTE_PRESENT,
-                                  Rk3399ReservedMemoryBuffer[Index].Offset,
-                                  Rk3399ReservedMemoryBuffer[Index].Size);
-      // Update the HOB
-      NextHob.ResourceDescriptor->ResourceLength = Rk3399ReservedMemoryBuffer[Index].Offset - NextHob.ResourceDescriptor->PhysicalStart;
-
-      // If there is some memory available on the top of the reserved memory then create a HOB
-      if (ReservedTop < ResourceTop) {
-        BuildResourceDescriptorHob (EFI_RESOURCE_SYSTEM_MEMORY,
-                                    ResourceAttributes,
-                                    ReservedTop,
-                                    ResourceTop - ReservedTop);
-      }
-      Index++;
-    }
-    NextHob.Raw = GET_NEXT_HOB (NextHob);
-  }
+    PcdGet64 (PcdSystemMemorySize),
+    ResourceAttributes);
 
   AdditionalMemorySize = MemorySize - PcdGet64 (PcdSystemMemorySize);
   if (AdditionalMemorySize > 0) {
@@ -190,11 +230,10 @@ ArmPlatformGetVirtualMemoryMap (
       EFI_RESOURCE_ATTRIBUTE_WRITE_BACK_CACHEABLE |
       EFI_RESOURCE_ATTRIBUTE_TESTED;
 
-    BuildResourceDescriptorHob (
-      EFI_RESOURCE_SYSTEM_MEMORY,
-      ResourceAttributes,
+    BuildMemoryRegionHobs (
       EXTRA_SYSTEM_MEMORY_BASE,
-      AdditionalMemorySize);
+      AdditionalMemorySize,
+      ResourceAttributes);
   }
 
   ASSERT (VirtualMemoryMap != NULL);
