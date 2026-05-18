@@ -41,8 +41,10 @@
 #define DWEMMC_BLOCK_SIZE               512
 #define DWEMMC_DMA_BUF_SIZE             (512 * 8)
 #define DWEMMC_MAX_DESC_PAGES           512
-#define DWEMMC_CMD_SETTLE_US            1000
+#define DWEMMC_CMD_SETTLE_US            100
 #define DWEMMC_SD_SWITCH_SETTLE_US      15000
+#define DWEMMC_CMD_POLL_US              10
+#define DWEMMC_CMD_TIMEOUT_US           1000000
 #define DWEMMC_DMA_POLL_US              10
 #define DWEMMC_DMA_TIMEOUT_US           10000000
 #define DWEMMC_INT_HTO                  (1 << 10)
@@ -316,6 +318,7 @@ SendCommand (
   )
 {
   UINT32      Data, ErrMask;
+  UINTN       TimeOut;
 
   DEBUG ((DW_DBG, "%a(): MmcCmd 0x%x(%d),Argument 0x%x \n", __func__, MmcCmd, MmcCmd&0x3f, Argument));
 
@@ -333,8 +336,8 @@ SendCommand (
   ErrMask = DWEMMC_INT_EBE | DWEMMC_INT_HLE | DWEMMC_INT_RTO |
             DWEMMC_INT_RCRC | DWEMMC_INT_RE;
   ErrMask |= DWEMMC_INT_DCRC | DWEMMC_INT_DRT | DWEMMC_INT_SBE;
+  TimeOut = DWEMMC_CMD_TIMEOUT_US / DWEMMC_CMD_POLL_US;
   do {
-    MicroSecondDelay(500);
     Data = MmioRead32 (DWEMMC_RINTSTS);
 
     if (Data & ErrMask) {
@@ -345,7 +348,19 @@ SendCommand (
     if (Data & DWEMMC_INT_DTO) {     // Transfer Done
       break;
     }
-  } while (!(Data & DWEMMC_INT_CMD_DONE));
+
+    if (Data & DWEMMC_INT_CMD_DONE) {
+      break;
+    }
+
+    MicroSecondDelay (DWEMMC_CMD_POLL_US);
+  } while (--TimeOut > 0);
+
+  if (TimeOut == 0) {
+    DEBUG ((DEBUG_ERROR, "%a(): EFI_TIMEOUT MmcCmd 0x%x(%d),Argument 0x%x RINTSTS=0x%x\n",
+      __func__, MmcCmd, MmcCmd&0x3f, Argument, Data));
+    return EFI_TIMEOUT;
+  }
 
   DEBUG ((DW_DBG, "%a(): EFI_SUCCESS\n", __func__));
   return EFI_SUCCESS;
